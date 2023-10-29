@@ -1,9 +1,10 @@
 from functools import partial
+import copy
 
 from controller import Controller
 from model import Endpoint
 
-from imgui_bundle import imgui, immapp, imgui_color_text_edit as ed
+from imgui_bundle import imgui, immapp, imgui_color_text_edit as ed, portable_file_dialogs as pfd
 TextEditor = ed.TextEditor
 
 
@@ -33,7 +34,7 @@ class EndpointInput:
                 endpoint.post_interaction.request.render_ed(EndpointInput.editor, "POST request")
                 imgui.tree_pop()
 
-            if imgui.button("Save"):
+            if imgui.button("Save", (30, 30)):
                 EndpointInput.validation = endpoint.validate()
                 if EndpointInput.validation == "":
                     ret = True
@@ -45,59 +46,124 @@ class EndpointInput:
         return ret
 
 
+class EndpointFilter:
+    def __init__(self, parent):
+        self.controller = parent.controller
+
+        self.url = ""
+        self.get = True
+        self.post = False
+
+    def gui(self) -> bool:
+        _, self.url = imgui.input_text("URL", self.url)
+        _, self.get = imgui.checkbox("GET", self.get)
+        _, self.post = imgui.checkbox("POST", self.post)
+
+
 class TestInputWindow:
     def __init__(self, parent):
         self.controller = parent.controller
+
+        self.endpoint_filter = None
         self.endpoint_add = None
         self.endpoint_edit = None
         self.validation = ""
 
-    def gui(self):
-        imgui.begin("Test input selection")
-        if imgui.tree_node("About"):
-            imgui.text("""
-Hello!
-This is a window where you specify all http endpoints for your site or web api.
-You can set which http requests to make, input payload templates and output examples.
-Here you can also choose for which security vulnerabilities to test for and what should be servers response.
-                       """)
-            imgui.tree_pop()
+        self.file_save = None
+        self.file_open = None
 
-        if imgui.button("Add endpoint"):
+    def menu(self):
+        if imgui.begin_menu_bar():
+
+            if imgui.begin_menu("File"):
+
+                if imgui.button("Save"):
+                    self.file_save = pfd.save_file("Select where to save", "", ["*.wt"])
+
+                if imgui.button("Open"):
+                    self.file_open = pfd.open_file("Open a save", "", ["*.wt"])
+
+                imgui.end_menu()
+
+            if imgui.begin_menu("About"):
+                imgui.text("""
+    Hello!
+    This is a window where you specify all http endpoints for your site or web api.
+    You can set which http requests to make, input payload templates and output examples.
+    Here you can also choose for which security vulnerabilities to test for and what should be servers response.
+                           """)
+
+                imgui.end_menu()
+
+            imgui.end_menu_bar()
+            
+        if self.file_save is not None and self.file_save.ready():
+            if self.file_save.result() is not None:
+                self.controller.save(self.file_save.result())
+                self.file_save = None
+
+        if self.file_open is not None and self.file_open.ready():
+            if self.file_open.result() is not None:
+                self.controller.open(self.file_open.result()[0])
+                self.file_open = None
+
+    def gui(self):
+        imgui.begin("Tests", 0, imgui.WindowFlags_.menu_bar | imgui.WindowFlags_.no_decoration)
+
+        self.menu()
+
+        if imgui.button("Add endpoint", (0, 30)):
             self.endpoint_add = Endpoint()
             
         if EndpointInput.edit(self.endpoint_add, "Add endpoint"):
             self.controller.add_endpoint(self.endpoint_add)
             self.endpoint_add = None
-            print("Added endpoint")
+
+        imgui.same_line()
+
+        if imgui.button("Search endpoints", (0, 30)):
+            self.endpoint_filter = EndpointFilter(self)
+        
+        if self.endpoint_filter is not None:
+            if imgui.tree_node_ex("Filter", imgui.TreeNodeFlags_.default_open):
+                self.endpoint_filter.gui()
+
+                if imgui.button("Filter", (100, 30)):
+                    self.controller.set_endpoint_filter(copy.deepcopy(self.endpoint_filter))
+                imgui.same_line()
+                if imgui.button("Cancel", (100, 30)):
+                    self.endpoint_filter = None
+
+                imgui.tree_pop()
 
         i = 0  # For button ids
-        if imgui.begin_table("Endpoints", 3, View.table_flags):
+        if imgui.begin_table("Endpoints", 3, View.table_flags, (0, 300)):
             imgui.table_header("URL")
             imgui.table_header("HTTP")
             imgui.table_header("Actions")
 
             for ep in self.controller.endpoints():
                 imgui.table_next_column()
-                imgui.text(ep.url)
+                imgui.set_next_item_width(-1)
+                imgui.input_text("", ep.url, imgui.InputTextFlags_.read_only)
 
                 imgui.table_next_column()
                 imgui.text(ep.http_types())
                 
                 imgui.table_next_column()
                 imgui.push_id(i)
-                if imgui.button("Edit"):
+                width = imgui.get_column_width()
+                if imgui.button("Edit", (width / 2 - 5, 0)):
                     self.endpoint_edit = ep
                 imgui.same_line()
-                if imgui.button("Delete"):
-                    self.controller.endpoints().remove(ep)
+                if imgui.button("Delete", (width / 2 - 5, 0)):
+                    self.controller.remove_endpoint(ep)
                 imgui.pop_id()
                 i += 1
             imgui.end_table()
 
         if EndpointInput.edit(self.endpoint_edit, "Edit endpoint"):
             self.endpoint_edit = None
-            print("Added endpoint")
 
         imgui.end()
 
@@ -107,9 +173,7 @@ class View:
 
     def __init__(self):
         self.controller = Controller()
-        self.windows = [
-            TestInputWindow(self)
-        ]
+        self.tests = TestInputWindow(self)
 
     def run(self):
         immapp.run(
@@ -118,5 +182,6 @@ class View:
                 window_size_auto=True)
 
     def gui(self):
-        for window in self.windows:
-            window.gui()
+        imgui.set_next_window_pos((0, 0))
+        imgui.set_next_window_size(imgui.get_window_size())
+        self.tests.gui()

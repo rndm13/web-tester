@@ -4,6 +4,8 @@ import json
 from enum import StrEnum
 from copy import deepcopy
 
+import _pickle as pickle
+
 from imgui_bundle import imgui_color_text_edit as ed
 TextEditor = ed.TextEditor
 
@@ -99,4 +101,16 @@ class Model:
         self.endpoints = endpoints
 
     def add_endpoint(self, endpoint: Endpoint):
-        self.endpoints.append(endpoint)
+        return self.endpoints.append(endpoint)
+
+    def remove_endpoint(self, endpoint: Endpoint):
+        return self.endpoints.remove(endpoint)
+
+    def save(self, filename: str):
+        with open(filename, 'wb') as output:
+            return pickle.dump(self, output, -1)
+
+    @staticmethod
+    def load(filename: str):
+        with open(filename, 'rb') as input:
+            return pickle.load(input)
