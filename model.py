@@ -41,7 +41,10 @@ JSONExample = """
 
 
 class Interaction:
-    def __init__(self, type: HttpType, request: EdText = EdText(JSONExample), response: EdText = EdText(JSONExample)):
+    def __init__(self,
+                 type: HttpType,
+                 request: EdText = EdText(JSONExample),
+                 response: EdText = EdText(JSONExample)):
         self.type = type
         self.request = deepcopy(request)
         self.response = deepcopy(response)
@@ -54,6 +57,9 @@ class Interaction:
         if ret != "":
             return ret
         return ""
+
+    def get_request(self):
+        return json.loads(self.request.text)
 
 
 class Endpoint:

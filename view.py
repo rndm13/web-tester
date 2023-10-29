@@ -165,11 +165,13 @@ class TestInputWindow:
         if EndpointInput.edit(self.endpoint_edit, "Edit endpoint"):
             self.endpoint_edit = None
 
-        if imgui.button("Test", (50, 30)):
-            self.controller.start_testing()
-        
-        if self.controller.testing and imgui.button("Cancel", (50, 30)):
-            self.controller.cancel_testing()
+        if self.controller.model.endpoints != []:
+            if not self.controller.testing:
+                if imgui.button("Test", (50, 30)):
+                    self.controller.start_basic_testing()
+            else:
+                if imgui.button("Cancel", (50, 30)):
+                    self.controller.cancel_testing()
 
         imgui.end()
 

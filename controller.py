@@ -1,5 +1,5 @@
 from threading import Thread
-import time
+import requests
 
 import model
 
@@ -47,15 +47,22 @@ class Controller:
         print("Controller: saving")
         self.model.save(filename)
 
-    def tests(self):
+    def basic_tests(self):
         self.progress = 0
-        while self.progress < 1 and self.testing:
-            self.progress += 0.01
-            time.sleep(0.1)
+        count = len(self.model.endpoints)
+        for endpoint in self.model.endpoints:
+            if endpoint.get:
+                requests.get(endpoint.url, endpoint.get_interaction.get_request())
+            if endpoint.post:
+                requests.post(endpoint.url, endpoint.get_interaction.get_request())
 
-    def start_testing(self):
+            self.progress += 1 / count
+        self.progress = 1
+        self.testing = False
+
+    def start_basic_testing(self):
         self.testing = True
-        self.testing_thread = Thread(target=Controller.tests, args=(self, ))
+        self.testing_thread = Thread(target=Controller.basic_tests, args=(self, ))
         self.testing_thread.start()
 
     def cancel_testing(self):
