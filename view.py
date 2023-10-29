@@ -1,6 +1,9 @@
 from functools import partial
+
+from controller import Controller
+from model import Endpoint
+
 from imgui_bundle import imgui, immapp, imgui_color_text_edit as ed
-from controller import (Controller, Endpoint)
 TextEditor = ed.TextEditor
 
 
@@ -74,7 +77,7 @@ Here you can also choose for which security vulnerabilities to test for and what
             imgui.table_header("HTTP")
             imgui.table_header("Actions")
 
-            for ep in self.controller.endpoints:
+            for ep in self.controller.endpoints():
                 imgui.table_next_column()
                 imgui.text(ep.url)
 
@@ -87,7 +90,7 @@ Here you can also choose for which security vulnerabilities to test for and what
                     self.endpoint_edit = ep
                 imgui.same_line()
                 if imgui.button("Delete"):
-                    self.controller.endpoints.remove(ep)
+                    self.controller.endpoints().remove(ep)
                 imgui.pop_id()
                 i += 1
             imgui.end_table()
