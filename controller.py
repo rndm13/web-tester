@@ -3,6 +3,8 @@ import validators
 import json
 
 from enum import StrEnum
+from copy import deepcopy
+
 from imgui_bundle import imgui_color_text_edit as ed
 TextEditor = ed.TextEditor
 
@@ -12,46 +14,36 @@ class HttpType(StrEnum):
     POST = "POST"
 
 
-class EdType(StrEnum):
-    JSON = "JSON"
-    HTML = "HTML"
-
-
 class EdText:
-    def __init__(self, type: EdType, text: str):
-        self.type = type
+    def __init__(self, text: str):
         self.text = text
 
     def render_ed(self, editor: TextEditor, label: str):
+        editor.set_language_definition(TextEditor.LanguageDefinition.json())
         editor.set_text(self.text)
-        if self.type == EdType.JSON:
-            editor.set_language_definition(TextEditor.LanguageDefinition.json())
-        if self.type == EdType.HTML:
-            editor.set_language_definition(None)
         editor.render(label)
         self.text = editor.get_text()
 
     def validate(self) -> str:
-        if self.type == EdType.JSON:
-            try:
-                json.loads(self.text)
-            except Exception as ex:
-                return str(ex)
+        try:
+            json.loads(self.text)
+        except Exception as ex:
+            return str(ex)
         return ""
         
 
-JSONExample = EdText(EdType.JSON, """
+JSONExample = """
 {
     "json": "example",
     "isjson": true
-}""")
+}"""
 
 
 class Interaction:
-    def __init__(self, type: HttpType, request: EdText = JSONExample, response: EdText = JSONExample):
+    def __init__(self, type: HttpType, request: EdText = EdText(JSONExample), response: EdText = EdText(JSONExample)):
         self.type = type
-        self.request = request
-        self.response = response
+        self.request = deepcopy(request)
+        self.response = deepcopy(response)
 
     def validate(self):
         ret = self.request.validate()
@@ -69,9 +61,9 @@ class Endpoint:
                  post: bool = False, post_interaction: Interaction = Interaction(HttpType.POST)):
         self.url = url
         self.get = get
-        self.get_interaction = get_interaction
+        self.get_interaction = deepcopy(get_interaction)
         self.post = post
-        self.post_interaction = post_interaction
+        self.post_interaction = deepcopy(post_interaction)
 
     def http_types(self) -> str:
         ret = ""

@@ -68,6 +68,7 @@ Here you can also choose for which security vulnerabilities to test for and what
             self.endpoint_add = None
             print("Added endpoint")
 
+        i = 0  # For button ids
         if imgui.begin_table("Endpoints", 3, View.table_flags):
             imgui.table_header("URL")
             imgui.table_header("HTTP")
@@ -81,11 +82,14 @@ Here you can also choose for which security vulnerabilities to test for and what
                 imgui.text(ep.http_types())
                 
                 imgui.table_next_column()
+                imgui.push_id(i)
                 if imgui.button("Edit"):
                     self.endpoint_edit = ep
                 imgui.same_line()
                 if imgui.button("Delete"):
                     self.controller.endpoints.remove(ep)
+                imgui.pop_id()
+                i += 1
             imgui.end_table()
 
         if EndpointInput.edit(self.endpoint_edit, "Edit endpoint"):
