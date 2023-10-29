@@ -108,7 +108,7 @@ class TestInputWindow:
                 self.file_open = None
 
     def gui(self):
-        imgui.begin("Tests", 0, imgui.WindowFlags_.menu_bar | imgui.WindowFlags_.no_decoration)
+        imgui.begin("Tests", 0, imgui.WindowFlags_.menu_bar)
 
         self.menu()
 
@@ -165,7 +165,24 @@ class TestInputWindow:
         if EndpointInput.edit(self.endpoint_edit, "Edit endpoint"):
             self.endpoint_edit = None
 
+        if imgui.button("Test", (50, 30)):
+            self.controller.start_testing()
+        
+        if self.controller.testing and imgui.button("Cancel", (50, 30)):
+            self.controller.cancel_testing()
+
         imgui.end()
+
+
+class StatusBar:
+    def __init__(self, parent):
+        self.controller = parent.controller
+    
+    def gui(self):
+        if self.controller.progress is not None:
+            imgui.begin("Status Bar")
+            imgui.progress_bar(self.controller.progress)
+            imgui.end()
 
 
 class View:
@@ -174,14 +191,24 @@ class View:
     def __init__(self):
         self.controller = Controller()
         self.tests = TestInputWindow(self)
+        self.status_bar = StatusBar(self)
+
+    def __enter__(self):
+        return self
+    
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.cleanup()
 
     def run(self):
         immapp.run(
                 gui_function=partial(View.gui, self),
                 window_title="Web Tester",
-                window_size_auto=True)
+                window_size_auto=True,
+                window_restore_previous_geometry=True)
 
     def gui(self):
-        imgui.set_next_window_pos((0, 0))
-        imgui.set_next_window_size(imgui.get_window_size())
         self.tests.gui()
+        self.status_bar.gui()
+
+    def cleanup(self):
+        self.controller.cleanup()
