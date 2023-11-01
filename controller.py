@@ -3,6 +3,7 @@ import requests
 
 import model
 
+
 class Controller:
     def __init__(self, model: model.Model = model.Model()):
         self.model = model

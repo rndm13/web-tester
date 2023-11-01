@@ -183,7 +183,14 @@ class StatusBar:
     def gui(self):
         if self.controller.progress is not None:
             imgui.begin("Status Bar")
+            if not self.controller.testing:
+                imgui.text("Stopped")
+            else:
+                imgui.text("|/-\\"[round(imgui.get_time() / (1 / 8)) & 3])
+                imgui.same_line()
+                imgui.text("Running")
             imgui.progress_bar(self.controller.progress)
+
             imgui.end()
 
 
