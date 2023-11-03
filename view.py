@@ -25,18 +25,76 @@ class EndpointInput(object):
         return cls.editor.get_text()
 
     @classmethod
+    def request_cookies(cls, request: model.HTTPRequest):
+        if imgui.button("Add new cookie!"):
+            i = 1
+            while f"key_{i}" in request.cookies:
+                i += 1
+            request.cookies[f"key_{i}"] = "value"
+
+        i = 0  # For button ids
+        to_remove = None  # on delete button click
+        if imgui.begin_table("Cookies", 3, View.table_flags, (0, 250)):
+            imgui.table_setup_scroll_freeze(0, 1)
+            imgui.table_setup_column("Key", imgui.TableColumnFlags_.none)
+            imgui.table_setup_column("Value", imgui.TableColumnFlags_.none)
+            imgui.table_setup_column("Actions", imgui.TableColumnFlags_.none)
+            imgui.table_headers_row()
+            
+            changed_key = False
+            old_key = ""
+            new_key = ""
+            changed_key_value = ""
+
+            for k, v in request.cookies.items():
+                imgui.push_id(i + 0)
+
+                imgui.table_next_column()
+                imgui.set_next_item_width(-1)
+                changed_key, new_key = imgui.input_text("", k)
+                if changed_key:
+                    old_key = k
+                    changed_key_value = v
+
+                imgui.pop_id()
+                imgui.push_id(i + 1)
+                
+                imgui.table_next_column()
+                imgui.set_next_item_width(-1)
+                changed, val = imgui.input_text("", v)
+                if changed:
+                    request.cookies[k] = val
+
+                imgui.pop_id()
+                imgui.push_id(i + 2)
+
+                imgui.table_next_column()
+                if imgui.button("Delete", (-1, 0)):
+                    to_remove = k
+
+                imgui.pop_id()
+                i += 3
+
+            if to_remove is not None:
+                request.cookies.pop(to_remove)
+
+            if changed_key:
+                request.cookies.pop(old_key)
+                request.cookies[new_key] = changed_key_value
+
+            imgui.end_table()
+
+    @classmethod
     def request_input(cls, request: model.HTTPRequest):
         if imgui.begin_tab_bar("Request"):
-            tab, _ = imgui.begin_tab_item("Header")
-            if tab:
+            if imgui.begin_tab_item("Header")[0]:
                 request.header = cls.render_ed(
                         "Header",
                         request.header,
                         (-1, 250))
                 imgui.end_tab_item()
 
-            tab, _ = imgui.begin_tab_item("Body")
-            if tab:
+            if imgui.begin_tab_item("Body")[0]:
                 _, request.body_json = imgui.checkbox("JSON", request.body_json)
 
                 language = None
@@ -51,52 +109,8 @@ class EndpointInput(object):
 
                 imgui.end_tab_item()
 
-            tab, _ = imgui.begin_tab_item("Cookies")
-            if tab:
-                if imgui.button("Add new cookie!"):
-                    request.cookies["New"] = "Cookie"
-
-                i = 0  # For button ids
-                to_remove = None  # on delete button click
-                if imgui.begin_table("Cookies", 3, View.table_flags, (0, 250)):
-                    imgui.table_header("Key")
-                    imgui.table_header("Value")
-                    imgui.table_header("Actions")
-
-                    for k, v in request.cookies.items():
-                        imgui.push_id(i + 0)
-
-                        imgui.table_next_column()
-                        imgui.set_next_item_width(-1)
-                        changed, t_k = imgui.input_text("", k)
-                        if changed:
-                            request.cookies.pop(k)
-                            k = t_k
-                            request.cookies[k] = v
-
-                        imgui.pop_id()
-                        imgui.push_id(i + 1)
-                        
-                        imgui.table_next_column()
-                        imgui.set_next_item_width(-1)
-                        changed, t_v = imgui.input_text("", v)
-                        if changed:
-                            request.cookies[k] = t_v
-
-                        imgui.pop_id()
-                        imgui.push_id(i + 2)
-
-                        imgui.table_next_column()
-                        if imgui.button("Delete", (-1, 0)):
-                            to_remove = k
-
-                        imgui.pop_id()
-                        i += 3
-                    if to_remove is not None:
-                        request.cookies.pop(to_remove)
-
-                    imgui.end_table()
-
+            if imgui.begin_tab_item("Cookies")[0]:
+                cls.request_cookies(request)
                 imgui.end_tab_item()
 
             imgui.end_tab_bar()
@@ -268,9 +282,11 @@ class TestInputWindow:
 
         i = 0  # For button ids
         if imgui.begin_table("Endpoints", 3, View.table_flags, (0, 300)):
-            imgui.table_header("URL")
-            imgui.table_header("HTTP")
-            imgui.table_header("Actions")
+            imgui.table_setup_scroll_freeze(0, 1)
+            imgui.table_setup_column("URL", imgui.TableColumnFlags_.none)
+            imgui.table_setup_column("HTTP", imgui.TableColumnFlags_.none)
+            imgui.table_setup_column("Actions", imgui.TableColumnFlags_.none)
+            imgui.table_headers_row()
 
             for ep in self.controller.endpoints():
                 imgui.table_next_column()

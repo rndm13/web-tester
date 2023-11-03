@@ -28,7 +28,7 @@ class HTTPRequest:
     def validate(self):
         if self.body_json:
             try:
-                json.loads(self.text)
+                json.loads(self.body)
             except Exception as ex:
                 return str(ex)
         return ""
@@ -91,12 +91,12 @@ class EndpointFilter:
         self.url = url
         self.http_type = http_type
 
-    def get_filter(self, endp: Endpoint) -> bool:
+    def use(self, endp: Endpoint) -> bool:
         ret = True
         if self.url is not None:
             ret &= self.url in endp.url
         if self.http_type is not None:
-            ret &= self.http_type in endp.http_type
+            ret &= self.http_type == endp.http_type()
         return ret
 
 

@@ -34,7 +34,7 @@ class Controller:
             return
 
         self.endpoints_filtered = list(filter(
-            partial(model.EndpointFilter.get_filter, self.endpoint_filter),
+            partial(model.EndpointFilter.use, self.endpoint_filter),
             self.model.endpoints))
 
     def endpoints(self):
