@@ -193,7 +193,7 @@ class EndpointInput(object):
         if not imgui.is_popup_open("Response"):
             imgui.open_popup("Response")
         if imgui.begin_popup_modal("Response"):
-            imgui.text(f"HTTP Status: {response}")
+            imgui.text(f"HTTP Status: {response.http_status.value} | {response.http_status.phrase}")
 
             if imgui.begin_tab_bar("Response"):
                 if imgui.begin_tab_item("Body")[0]:
@@ -297,6 +297,35 @@ class EndpointFilterInput:
                     self.filt.http_type = v
 
 
+class TestResultFilterInput:
+    def __init__(self, parent, filt: model.TestResultFilter = model.TestResultFilter("", None, 0)):
+        self.controller = parent.controller
+        self.filt = filt
+        self.spec_type = False
+
+    def gui(self) -> bool:
+        _, self.filt.url = imgui.input_text("URL", self.filt.url)
+
+        changed, self.spec_type = imgui.checkbox("Specify http types?", self.spec_type)
+        if changed:
+            if self.spec_type:
+                self.filt.http_type = model.HTTPType.GET
+            else:
+                self.filt.http_type = None
+
+        if self.spec_type:
+            for v in model.HTTPType:
+                imgui.same_line()
+                s = imgui.radio_button(str(v), self.filt.http_type == v)
+                if s:
+                    self.filt.http_type = v
+
+        _, self.filt.min_severity = imgui.combo(
+            label="Min severity",
+            current_item=self.filt.min_severity,
+            items=list(map(lambda x: x.name, model.Severity)))
+
+
 class TestInputWindow:
     def __init__(self, parent):
         self.controller = parent.controller
@@ -316,7 +345,7 @@ class TestInputWindow:
 
         imgui.same_line()
 
-        if imgui.button("Search Tests", (0, 30)):
+        if imgui.button("Filter Tests", (0, 30)):
             self.endpoint_filter = EndpointFilterInput(self)
         
         if self.endpoint_filter is not None:
@@ -383,6 +412,8 @@ class TestResultsWindow:
 
         self.response_details = None
 
+        self.result_filter = None
+
     def results_table(self):
         i = 0  # For button ids
         if imgui.begin_table("Results", 7, View.table_flags, (0, 250)):
@@ -418,33 +449,50 @@ class TestResultsWindow:
                 if tr.response is None:
                     imgui.text_colored(color, "None")
                 else:
+                    imgui.push_id(i + 1)
                     if imgui.button("Details"):
                         self.response_details = tr.response
+                    imgui.pop_id()
   
                 imgui.table_next_column()
                 imgui.set_next_item_width(-1)
-                imgui.push_id(i + 1)
+                imgui.push_id(i + 2)
                 imgui.input_text("", str(tr.error), imgui.InputTextFlags_.read_only)
                 imgui.pop_id()
                   
-                # imgui.push_id(i + 1)
                 imgui.table_next_column()
                 imgui.text_colored(color, "TODO!")
-                # imgui.pop_id()
-                i += 2
+                i += 3
             imgui.end_table()
 
             if EndpointInput.read_only_response(self.response_details):
                 self.response_details = None
 
     def gui(self):
-        if self.controller.model.endpoints != []:
+        if self.controller.model.test_results != []:
             if not self.controller.in_progress:
                 if imgui.button("Test", (50, 30)):
                     self.controller.start_basic_testing()
             else:
                 if imgui.button("Cancel", (50, 30)):
                     self.controller.cancel_testing()
+
+            imgui.same_line()
+
+            if imgui.button("Filter Tests", (0, 30)):
+                self.result_filter = TestResultFilterInput(self)
+        
+        if self.result_filter is not None:
+            if imgui.tree_node_ex("Filter", imgui.TreeNodeFlags_.default_open):
+                self.result_filter.gui()
+
+                if imgui.button("Filter", (100, 30)):
+                    self.controller.set_result_filter(copy.deepcopy(self.result_filter.filt))
+                imgui.same_line()
+                if imgui.button("Cancel", (100, 30)):
+                    self.result_filter = None
+
+                imgui.tree_pop()
 
         self.results_table()
         

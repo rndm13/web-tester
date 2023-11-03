@@ -132,7 +132,7 @@ class TestResult:
             for k, v in response.headers.items():
                 headers += f"{k}: {v}\n"
 
-            self.response = HTTPResponse(response.status_code, headers, response.content, body_json, response.cookies)
+            self.response = HTTPResponse(HTTPStatus(response.status_code), headers, response.content, body_json, response.cookies)
 
         self.error = error
 
@@ -145,6 +145,22 @@ class TestResult:
             return [255, 255, 0, 255]
         if self.severity == Severity.CRITICAL:
             return [255, 0, 0, 255]
+
+
+class TestResultFilter:
+    def __init__(self, url: str, http_type: HTTPType, min_severity: int) -> ():
+        self.url = url
+        self.http_type = http_type
+        self.min_severity = min_severity
+
+    def use(self, tr: TestResult) -> bool:
+        ret = tr.severity.value[0] >= self.min_severity
+        if self.url is not None:
+            ret &= self.url in tr.endpoint.url
+        if self.http_type is not None:
+            ret &= self.http_type == tr.endpoint.http_type()
+        
+        return ret
 
 
 class Model:

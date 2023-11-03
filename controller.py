@@ -17,6 +17,9 @@ class Controller:
         self.endpoints_filtered = []
         self.set_endpoint_filter(None)
 
+        self.results_filtered = []
+        self.set_result_filter(None)
+
         self.in_progress = False
         self.progress = None
         self.testing_thread = None
@@ -45,13 +48,27 @@ class Controller:
     def endpoints(self):
         return self.endpoints_filtered
 
+    def set_result_filter(self, filter: model.TestResultFilter):
+        self.result_filter = filter
+        self.filter_results()
+
+    def filter_results(self):
+        if self.result_filter is None:
+            self.results_filtered = self.model.test_results
+            return
+
+        self.results_filtered = list(filter(
+            partial(model.TestResultFilter.use, self.result_filter),
+            self.model.test_results))
+
     def test_results(self):
-        return self.model.test_results
+        return self.results_filtered
 
     def open(self, filename: str):
         log(LogLevel.info, f"Loading file: {filename}")
         self.model = model.Model.load(filename)
         self.set_endpoint_filter(None)
+        self.set_result_filter(None)
     
     def save(self, filename: str):
         log(LogLevel.info, f"Saving to file: {filename}")
