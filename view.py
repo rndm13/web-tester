@@ -88,9 +88,9 @@ class EndpointInput(object):
     def request_input(cls, request: model.HTTPRequest):
         if imgui.begin_tab_bar("Request"):
             if imgui.begin_tab_item("Header")[0]:
-                request.header = cls.render_ed(
+                request.headers = cls.render_ed(
                         "Header",
-                        request.header,
+                        request.headers,
                         (-1, 250))
                 imgui.end_tab_item()
 
@@ -121,7 +121,7 @@ class EndpointInput(object):
             return False
 
         request = endpoint.interaction.request
-        response = endpoint.interaction.expected_response
+        # response = endpoint.interaction.expected_response
 
         ret = False
 
@@ -139,16 +139,6 @@ class EndpointInput(object):
 
             cls.request_input(request)
             
-            # changed, endpoint.get = imgui.checkbox("GET", endpoint.get)
-            # if endpoint.get and imgui.tree_node("GET request"):
-            #     endpoint.get_interaction.request.render_ed(EndpointInput.editor, "GET request")
-            #     imgui.tree_pop()
-            #
-            # changed, endpoint.post = imgui.checkbox("POST", endpoint.post)
-            # if endpoint.post and imgui.tree_node("POST request"):
-            #     endpoint.post_interaction.request.render_ed(EndpointInput.editor, "POST request")
-            #     imgui.tree_pop()
-
             if imgui.button("Save", (50, 30)):
                 EndpointInput.validation = endpoint.validate()
                 if EndpointInput.validation == "":
@@ -212,10 +202,10 @@ class TestInputWindow:
 
             if imgui.begin_menu("About"):
                 imgui.text("""
-                           Hello!
-                           This is a window where you specify all http endpoints for your site or web api.
-                           You can set which http requests to make, input payload templates and output examples.
-                           Here you can also choose for which security vulnerabilities to test for and what should be servers response.
+Hello!
+This is a window where you specify all http endpoints for your site or web api.
+You can set which http requests to make, input payload templates and output examples.
+Here you can also choose for which security vulnerabilities to test for and what should be servers response.
                            """)
 
                 imgui.end_menu()
@@ -321,6 +311,7 @@ class StatusBar:
             else:
                 imgui.text("|/-\\"[round(imgui.get_time() / (1 / 8)) & 3])
                 imgui.same_line()
+                imgui.set_cursor_pos_x(20)
                 imgui.text("Running")
             imgui.progress_bar(self.controller.progress)
 
@@ -330,8 +321,8 @@ class StatusBar:
 class View:
     table_flags = imgui.TableFlags_.scroll_y | imgui.TableFlags_.row_bg | imgui.TableFlags_.borders_outer | imgui.TableFlags_.borders_v | imgui.TableFlags_.resizable | imgui.TableFlags_.reorderable | imgui.TableFlags_.hideable
 
-    def __init__(self):
-        self.controller = Controller()
+    def __init__(self, controller: Controller = Controller()):
+        self.controller = controller
         self.tests = TestInputWindow(self)
         self.status_bar = StatusBar(self)
 

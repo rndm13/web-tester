@@ -1,8 +1,9 @@
 import validators
 import json
 
-from enum import StrEnum
+from enum import Enum, StrEnum
 from http import HTTPStatus
+import requests
 
 import _pickle as pickle
 
@@ -18,9 +19,9 @@ class HTTPType(StrEnum):
 
 
 class HTTPRequest:
-    def __init__(self, http_type: HTTPType, header: str = "", body: str = "", body_json: bool = False, cookies: dict[str, str] = {}):
+    def __init__(self, http_type: HTTPType, headers: str = "", body: str = "", body_json: bool = False, cookies: dict[str, str] = {}):
         self.http_type = http_type
-        self.header = header
+        self.headers = headers
         self.body = body
         self.body_json = body_json
         self.cookies = cookies
@@ -35,9 +36,9 @@ class HTTPRequest:
 
 
 class HTTPResponse:
-    def __init__(self, http_status: HTTPStatus, header: str = "", body: str = "", body_json: bool = False, cookies: dict[str, str] = {}):
+    def __init__(self, http_status: HTTPStatus, headers: str = "", body: str = "", body_json: bool = False, cookies: dict[str, str] = {}):
         self.http_status = http_status
-        self.header = header
+        self.headers = headers
         self.body = body
         self.body_json = body_json
         self.cookies = cookies
@@ -100,9 +101,46 @@ class EndpointFilter:
         return ret
 
 
+class Severity(Enum):
+    OK = 0,
+    WARNING = 1,
+    DANGER = 2,
+    CRITICAL = 3
+
+
+class TestResult:
+    def __init__(self, endpoint: Endpoint, severity: Severity, verdict: str, response: requests.Response = None, error=None) -> ():
+        self.endpoint = endpoint
+        self.severity = severity
+        self.verdict = verdict
+
+        if response is not None:
+            body_json = False
+            try:
+                json.loads(response.content)
+                body_json = True
+            except Exception:
+                pass
+            self.response = HTTPResponse(response.status_code, response.headers, response.content, body_json, response.cookies)
+
+        self.error = error
+
+    def color(self) -> list[int]:
+        if self.severity == Severity.OK:
+            return [0, 255, 0, 255]
+        if self.severity == Severity.WARNING:
+            return [0, 0, 255, 255]
+        if self.severity == Severity.DANGER:
+            return [255, 255, 0, 255]
+        if self.severity == Severity.CRITICAL:
+            return [255, 0, 0, 255]
+
+
 class Model:
-    def __init__(self, endpoints: list[Endpoint] = []):
+    def __init__(self, endpoints: list[Endpoint] = [], test_results: list[TestResult] = []):
         self.endpoints = endpoints
+        self.test_results = test_results
+        print(self.test_results)
 
     def add_endpoint(self, endpoint: Endpoint):
         return self.endpoints.append(endpoint)
