@@ -57,15 +57,15 @@ class HTTPResponse:
 class Interaction:
     def __init__(self,
                  request: HTTPRequest,
-                 expected_response: HTTPResponse):
+                 response: HTTPResponse):
         self.request = request
-        self.expected_response = expected_response
+        self.response = response
 
     def validate(self) -> str:
         ret = self.request.validate()
         if ret != "":
             return ret
-        ret = self.expected_response.validate()
+        ret = self.response.validate()
         if ret != "":
             return ret
         return ""
@@ -164,9 +164,9 @@ class TestResultFilter:
 
 
 class Model:
-    def __init__(self, endpoints: list[Endpoint] = [], test_results: list[TestResult] = []):
+    def __init__(self, endpoints: list[Endpoint] = [], results: list[TestResult] = []):
         self.endpoints = endpoints
-        self.test_results = test_results
+        self.results = results
 
     def add_endpoint(self, endpoint: Endpoint):
         return self.endpoints.append(endpoint)

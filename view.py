@@ -112,7 +112,6 @@ class EndpointInput(object):
 
             imgui.end_table()
 
-
     @classmethod
     def request_input(cls, request: model.HTTPRequest):
         if imgui.begin_tab_bar("Request"):
@@ -237,7 +236,7 @@ class EndpointInput(object):
             return False
 
         request = endpoint.interaction.request
-        response = endpoint.interaction.expected_response
+        response = endpoint.interaction.response
 
         ret = False
 
@@ -357,6 +356,7 @@ class TestInputWindow:
                 imgui.same_line()
                 if imgui.button("Cancel", (100, 30)):
                     self.endpoint_filter = None
+                    self.controller.set_endpoint_filter(self.endpoint_filter)
 
                 imgui.tree_pop()
 
@@ -469,7 +469,7 @@ class TestResultsWindow:
                 self.response_details = None
 
     def gui(self):
-        if self.controller.model.test_results != []:
+        if self.controller.model.results != []:
             if not self.controller.in_progress:
                 if imgui.button("Test", (50, 30)):
                     self.controller.start_basic_testing()
@@ -491,6 +491,7 @@ class TestResultsWindow:
                 imgui.same_line()
                 if imgui.button("Cancel", (100, 30)):
                     self.result_filter = None
+                    self.controller.set_result_filter(self.result_filter)
 
                 imgui.tree_pop()
 
@@ -514,7 +515,8 @@ class View:
             imgui.same_line()
             imgui.set_cursor_pos_x(20)
             imgui.text("Running")
-            imgui.progress_bar(self.controller.progress)
+            imgui.same_line()
+            imgui.progress_bar(self.controller.progress, (200, 15))
 
     def menu(self):
         if imgui.begin_menu("File"):
@@ -551,10 +553,9 @@ class View:
         runner_params.imgui_window_params.menu_app_title = "Web Tester"
         runner_params.app_window_params.restore_previous_geometry = True
 
+        runner_params.imgui_window_params.show_status_fps = False
         runner_params.imgui_window_params.show_status_bar = True
         runner_params.callbacks.show_status = lambda: self.status_bar()
-
-        # runner_params.im_gui_window_params.show_status_fps = False
 
         runner_params.imgui_window_params.show_menu_bar = True  # We use the default menu of Hello ImGui
         runner_params.callbacks.show_menus = lambda: self.menu()

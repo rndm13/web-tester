@@ -54,12 +54,12 @@ class Controller:
 
     def filter_results(self):
         if self.result_filter is None:
-            self.results_filtered = self.model.test_results
+            self.results_filtered = self.model.results
             return
 
         self.results_filtered = list(filter(
             partial(model.TestResultFilter.use, self.result_filter),
-            self.model.test_results))
+            self.model.results))
 
     def test_results(self):
         return self.results_filtered
@@ -74,17 +74,19 @@ class Controller:
         log(LogLevel.info, f"Saving to file: {filename}")
         self.model.save(filename)
 
+    def make_request(self, endpoint: model.Endpoint) -> requests.Response:
+        if endpoint.http_type() == model.HTTPType.GET:
+            return requests.get(endpoint.url, endpoint.interaction.request.body, headers=endpoint.interaction.request.headers, cookies=endpoint.interaction.request.cookies)
+        if endpoint.http_type() == model.HTTPType.POST:
+            return requests.post(endpoint.url, endpoint.interaction.request.body, headers=endpoint.interaction.request.headers, cookies=endpoint.interaction.request.cookies)
+        if endpoint.http_type() == model.HTTPType.PUT:
+            return requests.put(endpoint.url, endpoint.interaction.request.body, headers=endpoint.interaction.request.headers, cookies=endpoint.interaction.request.cookies)
+        if endpoint.http_type() == model.HTTPType.DELETE:
+            return requests.delete(endpoint.url, endpoint.interaction.request.body, headers=endpoint.interaction.request.headers, cookies=endpoint.interaction.request.cookies)
+
     def basic_test(self, endpoint: model.Endpoint) -> model.TestResult:
         try:
-            response = None
-            if endpoint.http_type() == model.HTTPType.GET:
-                response = requests.get(endpoint.url, endpoint.interaction.request.body, headers=endpoint.interaction.request.headers, cookies=endpoint.interaction.request.cookies)
-            if endpoint.http_type() == model.HTTPType.POST:
-                response = requests.post(endpoint.url, endpoint.interaction.request.body, headers=endpoint.interaction.request.headers, cookies=endpoint.interaction.request.cookies)
-            if endpoint.http_type() == model.HTTPType.PUT:
-                response = requests.put(endpoint.url, endpoint.interaction.request.body, headers=endpoint.interaction.request.headers, cookies=endpoint.interaction.request.cookies)
-            if endpoint.http_type() == model.HTTPType.DELETE:
-                response = requests.delete(endpoint.url, endpoint.interaction.request.body, headers=endpoint.interaction.request.headers, cookies=endpoint.interaction.request.cookies)
+            response = self.make_request(endpoint)
             return model.TestResult(endpoint, model.Severity.OK,
                                     "Ended with no error", response)
         except requests.ConnectTimeout as error:
@@ -113,7 +115,8 @@ class Controller:
             self.progress += 1 / count
         self.progress = 1
         self.in_progress = False
-        self.model.test_results = test_results
+        self.model.results = test_results
+        self.filter_results()
 
     def start_basic_testing(self):
         self.testing_thread = Thread(target=Controller.run_basic_tests, args=(self, ))
