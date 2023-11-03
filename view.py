@@ -257,14 +257,6 @@ class TestResultsWindow:
         self.controller = parent.controller
 
     def results_table(self):
-        if self.controller.model.endpoints != []:
-            if not self.controller.in_progress:
-                if imgui.button("Test", (50, 30)):
-                    self.controller.start_basic_testing()
-            else:
-                if imgui.button("Cancel", (50, 30)):
-                    self.controller.cancel_testing()
-
         i = 0  # For button ids
         if imgui.begin_table("Results", 7, View.table_flags, (0, 300)):
             imgui.table_setup_scroll_freeze(0, 1)
@@ -315,6 +307,14 @@ class TestResultsWindow:
             imgui.end_table()
 
     def gui(self):
+        if self.controller.model.endpoints != []:
+            if not self.controller.in_progress:
+                if imgui.button("Test", (50, 30)):
+                    self.controller.start_basic_testing()
+            else:
+                if imgui.button("Cancel", (50, 30)):
+                    self.controller.cancel_testing()
+
         self.results_table()
         
 
@@ -346,6 +346,11 @@ class View:
                 self.file_open = pfd.open_file("Open a save", "", ["*.wt"])
             imgui.end_menu()
 
+        if imgui.begin_menu("Test"):
+            if imgui.menu_item("Basic tests", "", False)[0]:
+                self.controller.start_basic_testing()
+            imgui.end_menu()
+
         if self.file_save is not None and self.file_save.ready():
             if self.file_save.result() is not None and self.file_save.result() != "":
                 self.controller.save(self.file_save.result())
@@ -357,7 +362,7 @@ class View:
                 self.file_open = None
 
     def app_menu(self):
-        imgui.text("Hello!")
+        imgui.text("Hello!\nI should probably add about here or something...")
         pass
 
     def run(self):

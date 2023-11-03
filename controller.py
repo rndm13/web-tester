@@ -5,6 +5,10 @@ import requests
 
 import model
 
+from imgui_bundle import hello_imgui
+log = hello_imgui.log
+LogLevel = hello_imgui.LogLevel
+
 
 class Controller:
     def __init__(self, model: model.Model = model.Model([], [])):
@@ -45,10 +49,12 @@ class Controller:
         return self.model.test_results
 
     def open(self, filename: str):
+        log(LogLevel.info, f"Loading file: {filename}")
         self.model = model.Model.load(filename)
         self.set_endpoint_filter(None)
     
     def save(self, filename: str):
+        log(LogLevel.info, f"Saving to file: {filename}")
         self.model.save(filename)
 
     def basic_test(self, endpoint: model.Endpoint) -> model.TestResult:
@@ -81,12 +87,16 @@ class Controller:
         self.in_progress = True
         self.progress = 0
         count = len(self.model.endpoints)
+        test_results = []
         for endpoint in self.model.endpoints:
-            self.model.test_results.append(self.basic_test(endpoint))
+            log(LogLevel.info, f"Starting test for {endpoint.url} {endpoint.http_type()}")
+            result = self.basic_test(endpoint)
+            test_results.append(result)
 
             self.progress += 1 / count
         self.progress = 1
         self.in_progress = False
+        self.model.test_results = test_results
 
     def start_basic_testing(self):
         self.testing_thread = Thread(target=Controller.run_basic_tests, args=(self, ))
@@ -96,6 +106,7 @@ class Controller:
         self.in_progress = False
         if self.testing_thread is not None:
             self.testing_thread.join(3)
+        log(LogLevel.info, "Testing canceled")
     
     def cleanup(self):
         self.cancel_testing()

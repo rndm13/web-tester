@@ -10,6 +10,8 @@ import _pickle as pickle
 from imgui_bundle import imgui_color_text_edit as ed
 TextEditor = ed.TextEditor
 
+import datetime
+
 
 class HTTPType(StrEnum):
     GET = "GET"
