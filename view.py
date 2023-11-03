@@ -1,10 +1,9 @@
-from functools import partial
 import copy
 
 from controller import Controller
 import model
 
-from imgui_bundle import imgui, immapp, imgui_color_text_edit as ed, portable_file_dialogs as pfd
+from imgui_bundle import imgui, hello_imgui, imgui_color_text_edit as ed, portable_file_dialogs as pfd
 TextEditor = ed.TextEditor
 
 
@@ -184,51 +183,7 @@ class TestInputWindow:
         self.endpoint_edit = None
         self.validation = ""
 
-        self.file_save = None
-        self.file_open = None
-
-    def menu(self):
-        if imgui.begin_menu_bar():
-
-            if imgui.begin_menu("File"):
-
-                if imgui.button("Save"):
-                    self.file_save = pfd.save_file("Select where to save", "", ["*.wt"])
-
-                if imgui.button("Open"):
-                    self.file_open = pfd.open_file("Open a save", "", ["*.wt"])
-
-                imgui.end_menu()
-
-            if imgui.begin_menu("About"):
-                imgui.text("""
-Hello!
-This is a window where you specify all http endpoints for your site or web api.
-You can set which http requests to make, input payload templates and output examples.
-Here you can also choose for which security vulnerabilities to test for and what should be servers response.
-                           """)
-
-                imgui.end_menu()
-
-            imgui.text(f"(FPS: {round(1 / imgui.get_io().delta_time, 1)})")
-
-            imgui.end_menu_bar()
-
-        if self.file_save is not None and self.file_save.ready():
-            if self.file_save.result() is not None:
-                self.controller.save(self.file_save.result())
-                self.file_save = None
-
-        if self.file_open is not None and self.file_open.ready():
-            if self.file_open.result() is not None and len(self.file_open.result()) > 0:
-                self.controller.open(self.file_open.result()[0])
-                self.file_open = None
-
     def gui(self):
-        imgui.begin("Tests", 0, imgui.WindowFlags_.menu_bar)
-
-        self.menu()
-
         if imgui.button("Add endpoint", (0, 30)):
             self.endpoint_add = model.example_endpoint()
             
@@ -266,8 +221,6 @@ Here you can also choose for which security vulnerabilities to test for and what
                 if imgui.button("Cancel", (50, 30)):
                     self.controller.cancel_testing()
 
-        imgui.end()
-
     def endpoint_table(self):
 
         i = 0  # For button ids
@@ -299,24 +252,71 @@ Here you can also choose for which security vulnerabilities to test for and what
             imgui.end_table()
 
 
-class StatusBar:
+class TestResultsWindow:
     def __init__(self, parent):
         self.controller = parent.controller
-    
-    def gui(self):
-        if self.controller.progress is not None:
-            imgui.begin("Status Bar")
+
+    def results_table(self):
+        if self.controller.model.endpoints != []:
             if not self.controller.in_progress:
-                imgui.text("Stopped")
+                if imgui.button("Test", (50, 30)):
+                    self.controller.start_basic_testing()
             else:
-                imgui.text("|/-\\"[round(imgui.get_time() / (1 / 8)) & 3])
-                imgui.same_line()
-                imgui.set_cursor_pos_x(20)
-                imgui.text("Running")
-            imgui.progress_bar(self.controller.progress)
+                if imgui.button("Cancel", (50, 30)):
+                    self.controller.cancel_testing()
 
-            imgui.end()
+        i = 0  # For button ids
+        if imgui.begin_table("Results", 7, View.table_flags, (0, 300)):
+            imgui.table_setup_scroll_freeze(0, 1)
+            imgui.table_setup_column("URL", imgui.TableColumnFlags_.none)
+            imgui.table_setup_column("HTTP", imgui.TableColumnFlags_.none)
+            imgui.table_setup_column("Severity", imgui.TableColumnFlags_.none)
+            imgui.table_setup_column("Verdict", imgui.TableColumnFlags_.none)
+            imgui.table_setup_column("Response", imgui.TableColumnFlags_.none)
+            imgui.table_setup_column("Error", imgui.TableColumnFlags_.none)
+            imgui.table_setup_column("Actions", imgui.TableColumnFlags_.none)
+            imgui.table_headers_row()
 
+            for tr in self.controller.test_results():
+                color = tr.color()
+
+                imgui.table_next_column()
+                imgui.set_next_item_width(-1)
+                imgui.push_id(i + 0)
+                imgui.input_text("", tr.endpoint.url, imgui.InputTextFlags_.read_only)
+                imgui.pop_id()
+
+                imgui.table_next_column()
+                imgui.text_colored(color, tr.endpoint.http_type())
+                  
+                imgui.table_next_column()
+                imgui.text_colored(color, str(tr.severity))
+                  
+                imgui.table_next_column()
+                imgui.text_colored(color, tr.verdict)
+                  
+                imgui.table_next_column()
+                if tr.response is None:
+                    imgui.text_colored(color, "None")
+                else:
+                    imgui.text_colored(color, "TODO!")
+  
+                imgui.table_next_column()
+                imgui.set_next_item_width(-1)
+                imgui.push_id(i + 1)
+                imgui.input_text("", str(tr.error), imgui.InputTextFlags_.read_only)
+                imgui.pop_id()
+                  
+                # imgui.push_id(i + 1)
+                imgui.table_next_column()
+                imgui.text_colored(color, "TODO!")
+                # imgui.pop_id()
+                i += 1
+            imgui.end_table()
+
+    def gui(self):
+        self.results_table()
+        
 
 class View:
     table_flags = imgui.TableFlags_.scroll_y | imgui.TableFlags_.row_bg | imgui.TableFlags_.borders_outer | imgui.TableFlags_.borders_v | imgui.TableFlags_.resizable | imgui.TableFlags_.reorderable | imgui.TableFlags_.hideable
@@ -324,24 +324,111 @@ class View:
     def __init__(self, controller: Controller = Controller()):
         self.controller = controller
         self.tests = TestInputWindow(self)
-        self.status_bar = StatusBar(self)
+        self.results = TestResultsWindow(self)
+
+        self.file_save = None
+        self.file_open = None
+
+    def status_bar(self):
+        if self.controller.in_progress:
+            imgui.text("|/-\\"[round(imgui.get_time() / (1 / 8)) & 3])
+            imgui.same_line()
+            imgui.set_cursor_pos_x(20)
+            imgui.text("Running")
+            imgui.progress_bar(self.controller.progress)
+
+    def menu(self):
+        if imgui.begin_menu("File"):
+            if imgui.menu_item("Save", "Ctrl+S", False)[0]:
+                self.file_save = pfd.save_file("Select where to save", "", ["*.wt"])
+
+            if imgui.menu_item("Open", "Ctrl+O", False)[0]:
+                self.file_open = pfd.open_file("Open a save", "", ["*.wt"])
+            imgui.end_menu()
+
+        if self.file_save is not None and self.file_save.ready():
+            if self.file_save.result() is not None and self.file_save.result() != "":
+                self.controller.save(self.file_save.result())
+                self.file_save = None
+
+        if self.file_open is not None and self.file_open.ready():
+            if self.file_open.result() is not None and self.file_open.result() != []:  # can open multiple files
+                self.controller.open(self.file_open.result()[0])
+                self.file_open = None
+
+    def app_menu(self):
+        imgui.text("Hello!")
+        pass
+
+    def run(self):
+        runner_params = hello_imgui.RunnerParams()
+
+        runner_params.app_window_params.window_title = "Web Tester"
+        runner_params.imgui_window_params.menu_app_title = "Web Tester"
+        runner_params.app_window_params.restore_previous_geometry = True
+
+        runner_params.imgui_window_params.show_status_bar = True
+        runner_params.callbacks.show_status = lambda: self.status_bar()
+
+        # runner_params.im_gui_window_params.show_status_fps = False
+
+        runner_params.imgui_window_params.show_menu_bar = True  # We use the default menu of Hello ImGui
+        runner_params.callbacks.show_menus = lambda: self.menu()
+        runner_params.callbacks.show_app_menu_items = lambda: self.app_menu()
+
+        # First, tell HelloImGui that we want full screen dock space (this will create "MainDockSpace")
+        runner_params.imgui_window_params.default_imgui_window_type = \
+            hello_imgui.DefaultImGuiWindowType.provide_full_screen_dock_space
+        # Set the default layout (this contains the default DockingSplits and DockableWindows)
+        runner_params.docking_params = self.layout()
+
+        # Part 3: Run the app
+        hello_imgui.run(runner_params)
+
+    def splits(self) -> list[hello_imgui.DockingSplit]:
+        split_main_misc = hello_imgui.DockingSplit()
+        split_main_misc.initial_dock = "MainDockSpace"
+        split_main_misc.new_dock = "MiscSpace"
+        split_main_misc.direction = imgui.Dir_.right
+        split_main_misc.ratio = 0.25
+
+        splits = [split_main_misc]
+        return splits
+
+    def windows(self) -> list[hello_imgui.DockableWindow]:
+        test_w = hello_imgui.DockableWindow()
+        test_w.label = "Test input window"
+        test_w.dock_space_name = "MainDockSpace"
+        test_w.gui_function = lambda: self.tests.gui()
+
+        result_w = hello_imgui.DockableWindow()
+        result_w.label = "Test results window"
+        result_w.dock_space_name = "MainDockSpace"
+        result_w.gui_function = lambda: self.results.gui()
+
+        logs_w = hello_imgui.DockableWindow()
+        logs_w.label = "Logs"
+        logs_w.dock_space_name = "MiscSpace"
+        logs_w.gui_function = hello_imgui.log_gui
+
+        return [
+            test_w,
+            result_w,
+            logs_w,
+        ]
+
+    def layout(self) -> hello_imgui.DockingParams:
+        docking_params = hello_imgui.DockingParams()
+        docking_params.layout_name = "Default"
+        docking_params.docking_splits = self.splits()
+        docking_params.dockable_windows = self.windows()
+        return docking_params
+
+    def cleanup(self):
+        self.controller.cleanup()
 
     def __enter__(self):
         return self
     
     def __exit__(self, exc_type, exc_value, traceback):
         self.cleanup()
-
-    def run(self):
-        immapp.run(
-                gui_function=partial(View.gui, self),
-                window_title="Web Tester",
-                window_size_auto=True,
-                window_restore_previous_geometry=True)
-
-    def gui(self):
-        self.tests.gui()
-        self.status_bar.gui()
-
-    def cleanup(self):
-        self.controller.cleanup()

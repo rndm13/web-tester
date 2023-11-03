@@ -107,6 +107,10 @@ class Severity(Enum):
     DANGER = 2,
     CRITICAL = 3
 
+    def __str__(self) -> str:
+        strs = {0: "Ok", 1: "Warning", 2: "Danger", 3: "Critical"}
+        return strs[self.value[0]]
+
 
 class TestResult:
     def __init__(self, endpoint: Endpoint, severity: Severity, verdict: str, response: requests.Response = None, error=None) -> ():
@@ -114,6 +118,7 @@ class TestResult:
         self.severity = severity
         self.verdict = verdict
 
+        self.response = None
         if response is not None:
             body_json = False
             try:
@@ -140,7 +145,6 @@ class Model:
     def __init__(self, endpoints: list[Endpoint] = [], test_results: list[TestResult] = []):
         self.endpoints = endpoints
         self.test_results = test_results
-        print(self.test_results)
 
     def add_endpoint(self, endpoint: Endpoint):
         return self.endpoints.append(endpoint)

@@ -19,17 +19,17 @@ class Controller:
 
     def add_endpoint(self, endpoint: model.Endpoint):
         self.model.add_endpoint(endpoint)
-        self.filter()
+        self.filter_endpoints()
 
     def remove_endpoint(self, endpoint: model.Endpoint):
         self.model.remove_endpoint(endpoint)
-        self.filter()
+        self.filter_endpoints()
 
     def set_endpoint_filter(self, filter: model.EndpointFilter):
         self.endpoint_filter = filter
-        self.filter()
+        self.filter_endpoints()
 
-    def filter(self):
+    def filter_endpoints(self):
         if self.endpoint_filter is None:
             self.endpoints_filtered = self.model.endpoints
             return
@@ -40,6 +40,9 @@ class Controller:
 
     def endpoints(self):
         return self.endpoints_filtered
+
+    def test_results(self):
+        return self.model.test_results
 
     def open(self, filename: str):
         self.model = model.Model.load(filename)
@@ -68,8 +71,8 @@ class Controller:
             return model.TestResult(endpoint, model.Severity.WARNING,
                                     "Connection error", error=error)
         except requests.HTTPError as error:
-            return model.TestResult(endpoint, model.Severity.DANGER,
-                                    "Connection error", error=error)
+            return model.TestResult(endpoint, model.Severity.CRITICAL,
+                                    "HTTP error", error=error)
         except Exception as error:
             return model.TestResult(endpoint, model.Severity.DANGER,
                                     "Unknown error", error=error)
