@@ -2,6 +2,7 @@ import copy
 
 from controller import Controller
 import model
+from http import HTTPStatus
 
 from imgui_bundle import imgui, hello_imgui, imgui_color_text_edit as ed, portable_file_dialogs as pfd
 TextEditor = ed.TextEditor
@@ -24,12 +25,12 @@ class EndpointInput(object):
         return cls.editor.get_text()
 
     @classmethod
-    def request_cookies(cls, request: model.HTTPRequest):
+    def cookies(cls, cookies: dict[str, str]):
         if imgui.button("Add new cookie!"):
             i = 1
-            while f"key_{i}" in request.cookies:
+            while f"key_{i}" in cookies:
                 i += 1
-            request.cookies[f"key_{i}"] = "value"
+            cookies[f"key_{i}"] = "value"
 
         i = 0  # For button ids
         to_remove = None  # on delete button click
@@ -45,7 +46,7 @@ class EndpointInput(object):
             new_key = ""
             changed_key_value = ""
 
-            for k, v in request.cookies.items():
+            for k, v in cookies.items():
                 imgui.push_id(i + 0)
 
                 imgui.table_next_column()
@@ -62,7 +63,7 @@ class EndpointInput(object):
                 imgui.set_next_item_width(-1)
                 changed, val = imgui.input_text("", v)
                 if changed:
-                    request.cookies[k] = val
+                    cookies[k] = val
 
                 imgui.pop_id()
                 imgui.push_id(i + 2)
@@ -75,24 +76,46 @@ class EndpointInput(object):
                 i += 3
 
             if to_remove is not None:
-                request.cookies.pop(to_remove)
+                cookies.pop(to_remove)
 
             if changed_key:
-                request.cookies.pop(old_key)
-                request.cookies[new_key] = changed_key_value
+                cookies.pop(old_key)
+                cookies[new_key] = changed_key_value
 
             imgui.end_table()
 
     @classmethod
+    def read_only_cookies(cls, cookies: dict[str, str]):
+        i = 0  # For button ids
+        if imgui.begin_table("Cookies", 2, View.table_flags, (0, 250)):
+            imgui.table_setup_scroll_freeze(0, 1)
+            imgui.table_setup_column("Key", imgui.TableColumnFlags_.none)
+            imgui.table_setup_column("Value", imgui.TableColumnFlags_.none)
+            imgui.table_headers_row()
+
+            for k, v in cookies.items():
+                imgui.push_id(i + 0)
+
+                imgui.table_next_column()
+                imgui.set_next_item_width(-1)
+                imgui.input_text("", k, imgui.InputTextFlags_.read_only)
+
+                imgui.pop_id()
+                imgui.push_id(i + 1)
+                
+                imgui.table_next_column()
+                imgui.set_next_item_width(-1)
+                imgui.input_text("", v, imgui.InputTextFlags_.read_only)
+
+                imgui.pop_id()
+                i += 2
+
+            imgui.end_table()
+
+
+    @classmethod
     def request_input(cls, request: model.HTTPRequest):
         if imgui.begin_tab_bar("Request"):
-            if imgui.begin_tab_item("Header")[0]:
-                request.headers = cls.render_ed(
-                        "Header",
-                        request.headers,
-                        (-1, 250))
-                imgui.end_tab_item()
-
             if imgui.begin_tab_item("Body")[0]:
                 _, request.body_json = imgui.checkbox("JSON", request.body_json)
 
@@ -109,10 +132,104 @@ class EndpointInput(object):
                 imgui.end_tab_item()
 
             if imgui.begin_tab_item("Cookies")[0]:
-                cls.request_cookies(request)
+                cls.cookies(request.cookies)
+                imgui.end_tab_item()
+
+            if imgui.begin_tab_item("Headers")[0]:
+                request.headers = cls.render_ed(
+                        "Headers",
+                        request.headers,
+                        (-1, 250))
                 imgui.end_tab_item()
 
             imgui.end_tab_bar()
+
+    @classmethod
+    def response_input(cls, response: model.HTTPResponse):
+        cur_resp = list(HTTPStatus).index(response.http_status)
+        changed, cur_resp = imgui.combo(
+                label="Expected response",
+                current_item=cur_resp,
+                items=list(map(lambda x: f"{x.value} | {x.phrase}", HTTPStatus)))
+        if changed:
+            response.http_status = list(HTTPStatus)[cur_resp]
+
+        if imgui.begin_tab_bar("Response"):
+            if imgui.begin_tab_item("Body")[0]:
+                _, response.body_json = imgui.checkbox("JSON", response.body_json)
+
+                language = None
+                if response.body_json:
+                    language = cls.editor.LanguageDefinition.json()
+
+                response.body = cls.render_ed(
+                    "Body",
+                    response.body,
+                    (-1, 250),
+                    language)
+
+                imgui.end_tab_item()
+
+            if imgui.begin_tab_item("Cookies")[0]:
+                cls.cookies(response.cookies)
+                imgui.end_tab_item()
+
+            if imgui.begin_tab_item("Headers")[0]:
+                response.headers = cls.render_ed(
+                        "Headers",
+                        response.headers,
+                        (-1, 250))
+                imgui.end_tab_item()
+
+            imgui.end_tab_bar()
+
+    @classmethod
+    def read_only_response(cls, response: model.HTTPResponse) -> bool:
+        if response is None:
+            return False
+
+        ret = False
+
+        if not imgui.is_popup_open("Response"):
+            imgui.open_popup("Response")
+        if imgui.begin_popup_modal("Response"):
+            imgui.text(f"HTTP Status: {response}")
+
+            if imgui.begin_tab_bar("Response"):
+                if imgui.begin_tab_item("Body")[0]:
+                    imgui.checkbox("JSON", response.body_json)
+
+                    language = None
+                    if response.body_json:
+                        language = cls.editor.LanguageDefinition.json()
+
+                    cls.render_ed(
+                        "Body",
+                        response.body,
+                        (-1, 250),
+                        language)
+
+                    imgui.end_tab_item()
+
+                if imgui.begin_tab_item("Cookies")[0]:
+                    cls.read_only_cookies(response.cookies)
+                    imgui.end_tab_item()
+
+                if imgui.begin_tab_item("Headers")[0]:
+                    cls.render_ed(
+                            "Headers",
+                            response.headers,
+                            (-1, 250))
+                    imgui.end_tab_item()
+
+                imgui.end_tab_bar()
+
+                if imgui.button("Close"):
+                    ret = True
+
+            imgui.end_popup()
+        
+        return ret
 
     @classmethod
     def edit(cls, endpoint: model.Endpoint, label: str) -> bool:
@@ -120,7 +237,7 @@ class EndpointInput(object):
             return False
 
         request = endpoint.interaction.request
-        # response = endpoint.interaction.expected_response
+        response = endpoint.interaction.expected_response
 
         ret = False
 
@@ -136,7 +253,13 @@ class EndpointInput(object):
                 if s:
                     request.http_type = v
 
-            cls.request_input(request)
+            if imgui.tree_node("Request"):
+                cls.request_input(request)
+                imgui.tree_pop()
+
+            if imgui.tree_node("Expected Response"):
+                cls.response_input(response)
+                imgui.tree_pop()
             
             if imgui.button("Save", (50, 30)):
                 EndpointInput.validation = endpoint.validate()
@@ -184,16 +307,16 @@ class TestInputWindow:
         self.validation = ""
 
     def gui(self):
-        if imgui.button("Add endpoint", (0, 30)):
+        if imgui.button("Add Test", (0, 30)):
             self.endpoint_add = model.example_endpoint()
             
-        if EndpointInput.edit(self.endpoint_add, "Add endpoint"):
+        if EndpointInput.edit(self.endpoint_add, "Add Test"):
             self.controller.add_endpoint(self.endpoint_add)
             self.endpoint_add = None
 
         imgui.same_line()
 
-        if imgui.button("Search endpoints", (0, 30)):
+        if imgui.button("Search Tests", (0, 30)):
             self.endpoint_filter = EndpointFilterInput(self)
         
         if self.endpoint_filter is not None:
@@ -210,7 +333,7 @@ class TestInputWindow:
 
         self.endpoint_table()
 
-        if EndpointInput.edit(self.endpoint_edit, "Edit endpoint"):
+        if EndpointInput.edit(self.endpoint_edit, "Edit Test"):
             self.endpoint_edit = None
 
         if self.controller.model.endpoints != []:
@@ -224,7 +347,7 @@ class TestInputWindow:
     def endpoint_table(self):
 
         i = 0  # For button ids
-        if imgui.begin_table("Endpoints", 3, View.table_flags, (0, 300)):
+        if imgui.begin_table("Tests", 3, View.table_flags, (0, 250)):
             imgui.table_setup_scroll_freeze(0, 1)
             imgui.table_setup_column("URL", imgui.TableColumnFlags_.none)
             imgui.table_setup_column("HTTP", imgui.TableColumnFlags_.none)
@@ -232,15 +355,17 @@ class TestInputWindow:
             imgui.table_headers_row()
 
             for ep in self.controller.endpoints():
+                imgui.push_id(i + 0)
                 imgui.table_next_column()
                 imgui.set_next_item_width(-1)
                 imgui.input_text("", ep.url, imgui.InputTextFlags_.read_only)
+                imgui.pop_id()
 
                 imgui.table_next_column()
                 imgui.text(ep.http_type())
                 
                 imgui.table_next_column()
-                imgui.push_id(i)
+                imgui.push_id(i + 1)
                 width = imgui.get_column_width()
                 if imgui.button("Edit", (width / 2 - 5, 0)):
                     self.endpoint_edit = ep
@@ -248,7 +373,7 @@ class TestInputWindow:
                 if imgui.button("Delete", (width / 2 - 5, 0)):
                     self.controller.remove_endpoint(ep)
                 imgui.pop_id()
-                i += 1
+                i += 2
             imgui.end_table()
 
 
@@ -256,9 +381,11 @@ class TestResultsWindow:
     def __init__(self, parent):
         self.controller = parent.controller
 
+        self.response_details = None
+
     def results_table(self):
         i = 0  # For button ids
-        if imgui.begin_table("Results", 7, View.table_flags, (0, 300)):
+        if imgui.begin_table("Results", 7, View.table_flags, (0, 250)):
             imgui.table_setup_scroll_freeze(0, 1)
             imgui.table_setup_column("URL", imgui.TableColumnFlags_.none)
             imgui.table_setup_column("HTTP", imgui.TableColumnFlags_.none)
@@ -291,7 +418,8 @@ class TestResultsWindow:
                 if tr.response is None:
                     imgui.text_colored(color, "None")
                 else:
-                    imgui.text_colored(color, "TODO!")
+                    if imgui.button("Details"):
+                        self.response_details = tr.response
   
                 imgui.table_next_column()
                 imgui.set_next_item_width(-1)
@@ -303,8 +431,11 @@ class TestResultsWindow:
                 imgui.table_next_column()
                 imgui.text_colored(color, "TODO!")
                 # imgui.pop_id()
-                i += 1
+                i += 2
             imgui.end_table()
+
+            if EndpointInput.read_only_response(self.response_details):
+                self.response_details = None
 
     def gui(self):
         if self.controller.model.endpoints != []:

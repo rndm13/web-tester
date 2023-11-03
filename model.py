@@ -128,7 +128,11 @@ class TestResult:
                 body_json = True
             except Exception:
                 pass
-            self.response = HTTPResponse(response.status_code, response.headers, response.content, body_json, response.cookies)
+            headers = ""
+            for k, v in response.headers.items():
+                headers += f"{k}: {v}\n"
+
+            self.response = HTTPResponse(response.status_code, headers, response.content, body_json, response.cookies)
 
         self.error = error
 
@@ -165,5 +169,5 @@ class Model:
 
 
 def example_endpoint() -> Endpoint:
-    ec = Endpoint('https://example.com/some/action', Interaction(HTTPRequest(HTTPType.GET), HTTPRequest(HTTPStatus.OK)))
+    ec = Endpoint('https://example.com/some/action', Interaction(HTTPRequest(HTTPType.GET), HTTPResponse(HTTPStatus.OK)))
     return ec
