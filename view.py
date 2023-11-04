@@ -135,7 +135,7 @@ class EndpointInput(object):
                 
                 imgui.push_id(0)
                 changed, request.body = cls.render_ed(
-                    "Body",
+                    "Request body",
                     request.body,
                     (-1, 250),
                     language)
@@ -154,7 +154,7 @@ class EndpointInput(object):
             if imgui.begin_tab_item("Headers")[0]:
                 imgui.push_id(1)
                 _, request.headers = cls.render_ed(
-                        "Headers",
+                        "Request headers",
                         request.headers,
                         (-1, 250))
                 imgui.pop_id()
@@ -182,13 +182,13 @@ class EndpointInput(object):
 
                 imgui.push_id(0)
                 changed, response.body = cls.render_ed(
-                    "Body",
+                    "Response body",
                     response.body,
                     (-1, 250),
                     language)
 
                 if changed:
-                    request.prettify()
+                    response.prettify()
 
                 imgui.pop_id()
 
@@ -201,7 +201,7 @@ class EndpointInput(object):
             if imgui.begin_tab_item("Headers")[0]:
                 imgui.push_id(1)
                 _, response.headers = cls.render_ed(
-                        "Headers",
+                        "Response headers",
                         response.headers,
                         (-1, 250))
                 imgui.pop_id()
@@ -231,7 +231,7 @@ class EndpointInput(object):
 
                     imgui.push_id(0)
                     cls.render_ed(
-                        "Body",
+                        "RO Response body",
                         response.body,
                         (-1, 250),
                         language)
@@ -246,7 +246,7 @@ class EndpointInput(object):
                 if imgui.begin_tab_item("Headers")[0]:
                     imgui.push_id(1)
                     cls.render_ed(
-                            "Headers",
+                            "RO Response headers",
                             response.headers,
                             (-1, 250))
                     imgui.pop_id()

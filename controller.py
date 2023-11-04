@@ -129,8 +129,10 @@ class Controller:
             # checks if expected response headers are subset of received
             elif not expected_response_header_set.issubset(response_header_set):
                 verdict = "Unmatched headers"
-            elif not endpoint.interaction.response.body_json != model_http_response.body_json:
+            elif endpoint.interaction.response.body_json != model_http_response.body_json:
                 verdict = "Unmatched body type"
+            elif endpoint.interaction.response.body != "" and endpoint.interaction.response.body != model_http_response.body:
+                verdict = "Unmatched body"
 
             if verdict == "":
                 return model.TestResult(endpoint, model.Severity.OK,

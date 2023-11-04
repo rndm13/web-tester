@@ -55,10 +55,10 @@ class HTTPResponse:
         self.body = body
         self.body_json = body_json
         self.cookies = cookies
-        self.prettify_json()
+        self.prettify()
         
     def validate(self):
-        if self.body_json:
+        if self.body_json and self.body != "":
             try:
                 json.loads(self.body)
             except Exception as ex:
@@ -66,7 +66,7 @@ class HTTPResponse:
 
         return ""
 
-    def prettify_json(self):
+    def prettify(self):
         if not self.body_json:
             return
 
