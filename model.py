@@ -27,6 +27,7 @@ class HTTPRequest:
         self.body = body
         self.body_json = body_json
         self.cookies = cookies
+        self.prettify()
 
     def validate(self):
         if self.body_json:
@@ -36,6 +37,16 @@ class HTTPRequest:
                 return str(ex)
         return ""
 
+    def prettify(self):
+        if not self.body_json:
+            return
+
+        try:
+            json_data = json.loads(self.body)
+            self.body = json.dumps(json_data, indent=4)
+        except Exception:
+            pass
+
 
 class HTTPResponse:
     def __init__(self, http_status: HTTPStatus, headers: str = "", body: str = "", body_json: bool = False, cookies: dict[str, str] = {}):
@@ -44,14 +55,26 @@ class HTTPResponse:
         self.body = body
         self.body_json = body_json
         self.cookies = cookies
+        self.prettify_json()
         
     def validate(self):
         if self.body_json:
             try:
-                json.loads(self.text)
+                json.loads(self.body)
             except Exception as ex:
                 return str(ex)
+
         return ""
+
+    def prettify_json(self):
+        if not self.body_json:
+            return
+
+        try:
+            json_data = json.loads(self.body)
+            self.body = json.dumps(json_data, indent=4)
+        except Exception:
+            pass
 
 
 class Interaction:
@@ -115,25 +138,11 @@ class Severity(Enum):
 
 
 class TestResult:
-    def __init__(self, endpoint: Endpoint, severity: Severity, verdict: str, response: requests.Response = None, error=None) -> ():
+    def __init__(self, endpoint: Endpoint, severity: Severity, verdict: str, response: HTTPResponse = None, error=None) -> ():
         self.endpoint = endpoint
         self.severity = severity
         self.verdict = verdict
-
-        self.response = None
-        if response is not None:
-            body_json = False
-            try:
-                json.loads(response.content)
-                body_json = True
-            except Exception:
-                pass
-            headers = ""
-            for k, v in response.headers.items():
-                headers += f"{k}: {v}\n"
-
-            self.response = HTTPResponse(HTTPStatus(response.status_code), headers, response.content, body_json, response.cookies)
-
+        self.response = response
         self.error = error
 
     def color(self) -> list[int]:

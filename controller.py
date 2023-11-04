@@ -1,6 +1,7 @@
 from functools import partial
-
 from threading import Thread
+
+import json
 import requests
 from http import HTTPStatus
 
@@ -17,6 +18,20 @@ def str_to_dict(text: str) -> dict[str, str]:
         if (ind := line.find(':')) >= 0:
             to_ret[line[:ind]] = line[ind + 2:]  # skip over semicolon and space
     return to_ret
+
+
+def response_convert(response: requests.Response) -> model.HTTPResponse:
+    body_json = False
+    try:
+        json.loads(response.content)
+        body_json = True
+    except Exception:
+        pass
+    headers = ""
+    for k, v in response.headers.items():
+        headers += f"{k}: {v}\n"
+    
+    return model.HTTPResponse(HTTPStatus(response.status_code), headers, response.content, body_json, response.cookies)
 
 
 class Controller:
@@ -101,21 +116,27 @@ class Controller:
 
         try:
             response = self.make_request(endpoint)
+            model_http_response = response_convert(response)
             expected_response_header_set = set(map(value_lower, str_to_dict(endpoint.interaction.response.headers).items()))  # response headers but values are lowercase
             response_header_set = set(map(value_lower, response.headers.items()))  # response headers but values are lowercase
             verdict = ""
 
             if endpoint.interaction.response.http_status != HTTPStatus(response.status_code):
                 verdict = "Unmatched return status"
-            # checks if request headers are subset of received
+            # checks if expected response cookies are subset of received
+            elif not set(endpoint.interaction.response.cookies).issubset(set(response.cookies)):
+                verdict = "Unmatched cookies"
+            # checks if expected response headers are subset of received
             elif not expected_response_header_set.issubset(response_header_set):
                 verdict = "Unmatched headers"
+            elif not endpoint.interaction.response.body_json != model_http_response.body_json:
+                verdict = "Unmatched body type"
 
             if verdict == "":
                 return model.TestResult(endpoint, model.Severity.OK,
-                                        "Got expected response", response)
+                                        "Got expected response", response_convert(response))
             return model.TestResult(endpoint, model.Severity.DANGER,
-                                    verdict, response)
+                                    verdict, response_convert(response))
         except requests.ConnectTimeout as error:
             return model.TestResult(endpoint, model.Severity.WARNING,
                                     "Connection timeout", error=error)
