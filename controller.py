@@ -2,12 +2,21 @@ from functools import partial
 
 from threading import Thread
 import requests
+from http import HTTPStatus
 
 import model
 
 from imgui_bundle import hello_imgui
 log = hello_imgui.log
 LogLevel = hello_imgui.LogLevel
+
+
+def str_to_dict(text: str) -> dict[str, str]:
+    to_ret = {}
+    for line in text.splitlines(False):
+        if (ind := line.find(':')) >= 0:
+            to_ret[line[:ind]] = line[ind + 2:]  # skip over semicolon and space
+    return to_ret
 
 
 class Controller:
@@ -75,20 +84,38 @@ class Controller:
         self.model.save(filename)
 
     def make_request(self, endpoint: model.Endpoint) -> requests.Response:
+        headers = str_to_dict(endpoint.interaction.request.headers)
         if endpoint.http_type() == model.HTTPType.GET:
-            return requests.get(endpoint.url, endpoint.interaction.request.body, headers=endpoint.interaction.request.headers, cookies=endpoint.interaction.request.cookies)
+            return requests.get(endpoint.url, endpoint.interaction.request.body, headers=headers, cookies=endpoint.interaction.request.cookies)
         if endpoint.http_type() == model.HTTPType.POST:
-            return requests.post(endpoint.url, endpoint.interaction.request.body, headers=endpoint.interaction.request.headers, cookies=endpoint.interaction.request.cookies)
+            return requests.post(endpoint.url, endpoint.interaction.request.body, headers=headers, cookies=endpoint.interaction.request.cookies)
         if endpoint.http_type() == model.HTTPType.PUT:
-            return requests.put(endpoint.url, endpoint.interaction.request.body, headers=endpoint.interaction.request.headers, cookies=endpoint.interaction.request.cookies)
+            return requests.put(endpoint.url, endpoint.interaction.request.body, headers=headers, cookies=endpoint.interaction.request.cookies)
         if endpoint.http_type() == model.HTTPType.DELETE:
-            return requests.delete(endpoint.url, endpoint.interaction.request.body, headers=endpoint.interaction.request.headers, cookies=endpoint.interaction.request.cookies)
+            return requests.delete(endpoint.url, endpoint.interaction.request.body, headers=headers, cookies=endpoint.interaction.request.cookies)
 
     def basic_test(self, endpoint: model.Endpoint) -> model.TestResult:
+        def value_lower(t):
+            (k, v) = t
+            return (k, v.lower())
+
         try:
             response = self.make_request(endpoint)
-            return model.TestResult(endpoint, model.Severity.OK,
-                                    "Ended with no error", response)
+            expected_response_header_set = set(map(value_lower, str_to_dict(endpoint.interaction.response.headers).items()))  # response headers but values are lowercase
+            response_header_set = set(map(value_lower, response.headers.items()))  # response headers but values are lowercase
+            verdict = ""
+
+            if endpoint.interaction.response.http_status != HTTPStatus(response.status_code):
+                verdict = "Unmatched return status"
+            # checks if request headers are subset of received
+            elif not expected_response_header_set.issubset(response_header_set):
+                verdict = "Unmatched headers"
+
+            if verdict == "":
+                return model.TestResult(endpoint, model.Severity.OK,
+                                        "Got expected response", response)
+            return model.TestResult(endpoint, model.Severity.DANGER,
+                                    verdict, response)
         except requests.ConnectTimeout as error:
             return model.TestResult(endpoint, model.Severity.WARNING,
                                     "Connection timeout", error=error)

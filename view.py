@@ -15,8 +15,8 @@ class EndpointInput(object):
     @classmethod
     def render_ed(cls, label: str, text: str, size: imgui.ImVec2 = (0, 0), language: TextEditor.LanguageDefinition = None) -> str:
         if language is None:
-            changed, i = imgui.input_text_multiline("", text, size)
-            return i
+            changed, text = imgui.input_text_multiline("", text, size)
+            return text
             
         cls.editor.set_language_definition(language)
         cls.editor.set_text(text)
@@ -121,12 +121,14 @@ class EndpointInput(object):
                 language = None
                 if request.body_json:
                     language = cls.editor.LanguageDefinition.json()
-
+                
+                imgui.push_id(0)
                 request.body = cls.render_ed(
                     "Body",
                     request.body,
                     (-1, 250),
                     language)
+                imgui.pop_id()
 
                 imgui.end_tab_item()
 
@@ -135,10 +137,12 @@ class EndpointInput(object):
                 imgui.end_tab_item()
 
             if imgui.begin_tab_item("Headers")[0]:
+                imgui.push_id(1)
                 request.headers = cls.render_ed(
                         "Headers",
                         request.headers,
                         (-1, 250))
+                imgui.pop_id()
                 imgui.end_tab_item()
 
             imgui.end_tab_bar()
@@ -161,11 +165,13 @@ class EndpointInput(object):
                 if response.body_json:
                     language = cls.editor.LanguageDefinition.json()
 
+                imgui.push_id(0)
                 response.body = cls.render_ed(
                     "Body",
                     response.body,
                     (-1, 250),
                     language)
+                imgui.pop_id()
 
                 imgui.end_tab_item()
 
@@ -174,10 +180,12 @@ class EndpointInput(object):
                 imgui.end_tab_item()
 
             if imgui.begin_tab_item("Headers")[0]:
+                imgui.push_id(1)
                 response.headers = cls.render_ed(
                         "Headers",
                         response.headers,
                         (-1, 250))
+                imgui.pop_id()
                 imgui.end_tab_item()
 
             imgui.end_tab_bar()
@@ -202,11 +210,13 @@ class EndpointInput(object):
                     if response.body_json:
                         language = cls.editor.LanguageDefinition.json()
 
+                    imgui.push_id(0)
                     cls.render_ed(
                         "Body",
                         response.body,
                         (-1, 250),
                         language)
+                    imgui.pop_id()
 
                     imgui.end_tab_item()
 
@@ -215,10 +225,12 @@ class EndpointInput(object):
                     imgui.end_tab_item()
 
                 if imgui.begin_tab_item("Headers")[0]:
+                    imgui.push_id(1)
                     cls.render_ed(
                             "Headers",
                             response.headers,
                             (-1, 250))
+                    imgui.pop_id()
                     imgui.end_tab_item()
 
                 imgui.end_tab_bar()
