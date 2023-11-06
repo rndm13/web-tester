@@ -1,4 +1,5 @@
 from functools import partial
+from copy import deepcopy
 from concurrent import futures
 
 import re
@@ -44,7 +45,7 @@ def response_convert(response: requests.Response) -> model.HTTPResponse:
 
 
 class Controller:
-    def __init__(self, model: model.Model = model.Model([], []), thread_pool: futures.ThreadPoolExecutor = futures.ThreadPoolExecutor(4)):
+    def __init__(self, model: model.Model = model.Model([], []), thread_pool: futures.ThreadPoolExecutor = futures.ThreadPoolExecutor(4), max_wait: int = 2):
         self.model = model
         self.thread_pool = thread_pool
 
@@ -57,6 +58,8 @@ class Controller:
         self.in_progress = False
         self.progress = None
         self.testing_thread = None
+
+        self.max_wait = max_wait
 
     def add_endpoint(self, endpoint: model.Endpoint):
         self.model.add_endpoint(endpoint)
@@ -111,23 +114,22 @@ class Controller:
     def make_request(self, endpoint: model.Endpoint) -> requests.Response:
         headers = str_to_dict(endpoint.interaction.request.headers)
         if endpoint.http_type() == model.HTTPType.GET:
-            return requests.get(endpoint.url, endpoint.interaction.request.body, headers=headers, cookies=endpoint.interaction.request.cookies)
+            return requests.get(endpoint.url, endpoint.interaction.request.body, headers=headers, cookies=endpoint.interaction.request.cookies, timeout=self.max_wait)
         if endpoint.http_type() == model.HTTPType.POST:
-            return requests.post(endpoint.url, endpoint.interaction.request.body, headers=headers, cookies=endpoint.interaction.request.cookies)
+            return requests.post(endpoint.url, endpoint.interaction.request.body, headers=headers, cookies=endpoint.interaction.request.cookies, timeout=self.max_wait)
         if endpoint.http_type() == model.HTTPType.PUT:
-            return requests.put(endpoint.url, endpoint.interaction.request.body, headers=headers, cookies=endpoint.interaction.request.cookies)
+            return requests.put(endpoint.url, endpoint.interaction.request.body, headers=headers, cookies=endpoint.interaction.request.cookies, timeout=self.max_wait)
         if endpoint.http_type() == model.HTTPType.DELETE:
-            return requests.delete(endpoint.url, endpoint.interaction.request.body, headers=headers, cookies=endpoint.interaction.request.cookies)
+            return requests.delete(endpoint.url, endpoint.interaction.request.body, headers=headers, cookies=endpoint.interaction.request.cookies, timeout=self.max_wait)
 
     def basic_test(self, endpoint: model.Endpoint) -> model.TestResult:
         def value_lower(t):
             (k, v) = t
             return (k, v.lower())
 
-        ret = None
-
         try:
             response = self.make_request(endpoint)
+            log(LogLevel.info, f"Got response from {endpoint.url} {endpoint.http_type()}")
             model_http_response = response_convert(response)
             expected_response_header_set = set(map(value_lower, str_to_dict(endpoint.interaction.response.headers).items()))  # response headers but values are lowercase
             response_header_set = set(map(value_lower, response.headers.items()))  # response headers but values are lowercase
@@ -156,22 +158,25 @@ class Controller:
                 verdict = "Unmatched headers"
                 severity = model.Severity.DANGER
 
-            ret = model.TestResult(endpoint, severity, verdict,
-                                   response.elapsed, model_http_response)
+            return model.TestResult(endpoint, severity, verdict,
+                                    response.elapsed, model_http_response)
+
         except requests.ConnectTimeout as error:
-            ret = model.TestResult(endpoint, model.Severity.WARNING, "Connection timeout",
-                                   response.elapsed, error=error)
+            log(LogLevel.error, f"Connection timeout for {endpoint.url} {endpoint.http_type()}")
+            return model.TestResult(endpoint, model.Severity.WARNING, "Connection timeout",
+                                    None, error=error)
         except requests.ConnectionError as error:
-            ret = model.TestResult(endpoint, model.Severity.WARNING, "Connection error",
-                                   response.elapsed, error=error)
+            log(LogLevel.error, f"Connection error for {endpoint.url} {endpoint.http_type()}")
+            return model.TestResult(endpoint, model.Severity.WARNING, "Connection error",
+                                    None, error=error)
         except requests.HTTPError as error:
-            ret = model.TestResult(endpoint, model.Severity.CRITICAL, "HTTP error",
-                                   response.elapsed, error=error)
+            log(LogLevel.error, f"HTTP error for {endpoint.url} {endpoint.http_type()}")
+            return model.TestResult(endpoint, model.Severity.DANGER, "HTTP error",
+                                    None, error=error)
         except Exception as error:
-            ret = model.TestResult(endpoint, model.Severity.DANGER, "Unknown error",
-                                   response.elapsed, error=error)
-        
-        return ret
+            log(LogLevel.error, f"Unknown error for {endpoint.url} {endpoint.http_type()}")
+            return model.TestResult(endpoint, model.Severity.DANGER, "Unknown error",
+                                    None, error=error)
 
     def run_basic_tests(self):
         self.in_progress = True
@@ -185,8 +190,11 @@ class Controller:
             thrs.append(self.thread_pool.submit(Controller.basic_test, self, endpoint))
 
         for thr in thrs:
-            results.append(thr.result())
-            self.progress += 1 / count
+            try:
+                results.append(thr.result(timeout=None))
+                self.progress += 1 / count
+            except Exception as error:
+                log(LogLevel.error, error)
 
         self.model.results = results
         self.progress = 1
@@ -199,7 +207,10 @@ class Controller:
     def cancel_testing(self):
         if not self.in_progress:
             return
-        self.thread_pool.shutdown(cancel_futures=True)
+
+        for thr in self.thread_pool._threads:
+            thr.join(timeout=0.5)
+            
         self.in_progress = False
         log(LogLevel.info, "Testing canceled")
     
