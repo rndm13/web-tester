@@ -113,76 +113,86 @@ class Controller:
         log(LogLevel.info, f"Saving to file: {filename}")
         self.model.save(filename)
 
-    def make_request(self, endpoint: model.Endpoint) -> requests.Response:
-        headers = str_to_dict(endpoint.interaction.request.headers)
+    def make_request(self, endpoint: model.Endpoint, request: model.HTTPRequest = None) -> requests.Response:
+        if request is None:
+            request = endpoint.interaction.request
+        headers = str_to_dict(request.headers)
         if endpoint.http_type() == model.HTTPType.GET:
-            return requests.get(endpoint.url, endpoint.interaction.request.body, headers=headers, cookies=endpoint.interaction.request.cookies, timeout=self.max_wait)
+            return requests.get(endpoint.url, request.body, headers=headers, cookies=request.cookies, timeout=self.max_wait)
         if endpoint.http_type() == model.HTTPType.POST:
-            return requests.post(endpoint.url, endpoint.interaction.request.body, headers=headers, cookies=endpoint.interaction.request.cookies, timeout=self.max_wait)
+            return requests.post(endpoint.url, request.body, headers=headers, cookies=request.cookies, timeout=self.max_wait)
         if endpoint.http_type() == model.HTTPType.PUT:
-            return requests.put(endpoint.url, endpoint.interaction.request.body, headers=headers, cookies=endpoint.interaction.request.cookies, timeout=self.max_wait)
+            return requests.put(endpoint.url, request.body, headers=headers, cookies=request.cookies, timeout=self.max_wait)
         if endpoint.http_type() == model.HTTPType.DELETE:
-            return requests.delete(endpoint.url, endpoint.interaction.request.body, headers=headers, cookies=endpoint.interaction.request.cookies, timeout=self.max_wait)
+            return requests.delete(endpoint.url, request.body, headers=headers, cookies=request.cookies, timeout=self.max_wait)
 
-    def handle_request(self, endpoint: model.Endpoint, handler: Callable[[requests.Response], model.TestResult]) -> model.TestResult:
+    def handle_request(self, endpoint: model.Endpoint, handler: Callable[[requests.Response], model.TestResult], diff_request: model.HTTPRequest = None) -> model.TestResult:
+        if diff_request is None:
+            diff_request = endpoint.interaction.request
+
         try:
-            response = self.make_request(endpoint)
+            response = self.make_request(endpoint, diff_request)
             log(LogLevel.info, f"Got response from {endpoint.url} {endpoint.http_type()}")
-            return handler(endpoint, response)
+
+            return handler(response)
         except requests.ConnectTimeout as error:
             log(LogLevel.error, f"Connection timeout for {endpoint.url} {endpoint.http_type()}")
             return model.TestResult(endpoint, model.Severity.WARNING, "Connection timeout",
-                                    None, error=error)
+                                    None, error=error, diff_request=diff_request)
         except requests.ConnectionError as error:
             log(LogLevel.error, f"Connection error for {endpoint.url} {endpoint.http_type()}")
             return model.TestResult(endpoint, model.Severity.WARNING, "Connection error",
-                                    None, error=error)
+                                    None, error=error, diff_request=diff_request)
         except requests.HTTPError as error:
             log(LogLevel.error, f"HTTP error for {endpoint.url} {endpoint.http_type()}")
             return model.TestResult(endpoint, model.Severity.DANGER, "HTTP error",
-                                    None, error=error)
+                                    None, error=error, diff_request=diff_request)
         except Exception as error:
             log(LogLevel.error, f"Unknown error for {endpoint.url} {endpoint.http_type()}")
             return model.TestResult(endpoint, model.Severity.DANGER, "Unknown error",
-                                    None, error=error)
+                                    None, error=error, diff_request=diff_request)
 
-    def basic_test(self, endpoint: model.Endpoint, response: requests.Response) -> model.TestResult:
+    def match_test(self, endpoint: model.Endpoint) -> model.TestResult:
         def value_lower(t):
             (k, v) = t
             return (k, v.lower())
 
-        model_http_response = response_convert(response)
-        expected_response_header_set = set(map(value_lower, str_to_dict(endpoint.interaction.response.headers).items()))  # response headers but values are lowercase
-        response_header_set = set(map(value_lower, response.headers.items()))  # response headers but values are lowercase
+        def handle_response(response: requests.Response):
+            model_http_response = response_convert(response)
+            expected_response_header_set = set(map(value_lower, str_to_dict(endpoint.interaction.response.headers).items()))  # response headers but values are lowercase
+            response_header_set = set(map(value_lower, response.headers.items()))  # response headers but values are lowercase
 
-        verdict = "Got expected response"
-        severity = model.Severity.OK
+            verdict = "Got expected response"
+            severity = model.Severity.OK
+            
+            # if specified status isn't client error we check for errors in response
+            if not endpoint.interaction.response.http_status.is_client_error and match_errors(model_http_response.body):
+                verdict = "Found errors in response"
+                severity = model.Severity.CRITICAL
+            elif endpoint.interaction.response.body_json != model_http_response.body_json:
+                verdict = "Unmatched body type"
+                severity = model.Severity.CRITICAL
+            elif endpoint.interaction.response.body != "" and endpoint.interaction.response.body != model_http_response.body:
+                verdict = "Unmatched body"
+                severity = model.Severity.CRITICAL
+            elif endpoint.interaction.response.http_status != HTTPStatus(response.status_code):
+                verdict = "Unmatched return status"
+                severity = model.Severity.DANGER
+            # checks if expected response cookies are subset of received
+            elif not set(endpoint.interaction.response.cookies).issubset(set(response.cookies)):
+                verdict = "Unmatched cookies"
+                severity = model.Severity.DANGER
+            # checks if expected response headers are subset of received
+            elif not expected_response_header_set.issubset(response_header_set):
+                verdict = "Unmatched headers"
+                severity = model.Severity.DANGER
 
-        if match_errors(model_http_response.body):
-            verdict = "Found errors in response"
-            severity = model.Severity.CRITICAL
-        elif endpoint.interaction.response.body_json != model_http_response.body_json:
-            verdict = "Unmatched body type"
-            severity = model.Severity.CRITICAL
-        elif endpoint.interaction.response.body != "" and endpoint.interaction.response.body != model_http_response.body:
-            verdict = "Unmatched body"
-            severity = model.Severity.CRITICAL
-        elif endpoint.interaction.response.http_status != HTTPStatus(response.status_code):
-            verdict = "Unmatched return status"
-            severity = model.Severity.DANGER
-        # checks if expected response cookies are subset of received
-        elif not set(endpoint.interaction.response.cookies).issubset(set(response.cookies)):
-            verdict = "Unmatched cookies"
-            severity = model.Severity.DANGER
-        # checks if expected response headers are subset of received
-        elif not expected_response_header_set.issubset(response_header_set):
-            verdict = "Unmatched headers"
-            severity = model.Severity.DANGER
+            return model.TestResult(endpoint, severity, verdict,
+                                    response.elapsed, None, model_http_response)
 
-        return model.TestResult(endpoint, severity, verdict,
-                                response.elapsed, model_http_response)
+        return self.handle_request(endpoint, handle_response)
 
-    def run_basic_tests(self):
+    def run_tests(self):
         self.in_progress = True
         self.progress = 0
         count = len(self.model.endpoints)
@@ -191,9 +201,7 @@ class Controller:
         results = []
         for endpoint in self.model.endpoints:
             log(LogLevel.info, f"Starting test for {endpoint.url} {endpoint.http_type()}")
-            thrs.append(self.thread_pool.submit(
-                Controller.handle_request, self, endpoint,
-                lambda e, r: self.basic_test(e, r)))
+            thrs.append(self.thread_pool.submit(Controller.match_test, self, endpoint))
 
         for thr in thrs:
             try:
@@ -208,7 +216,7 @@ class Controller:
         self.filter_results()
 
     def start_basic_testing(self):
-        self.testing_thread = self.thread_pool.submit(Controller.run_basic_tests, self)
+        self.testing_thread = self.thread_pool.submit(Controller.run_tests, self)
 
     def cancel_testing(self):
         if not self.in_progress:

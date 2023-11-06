@@ -154,13 +154,19 @@ class Severity(Enum):
 
 
 class TestResult:
-    def __init__(self, endpoint: Endpoint, severity: Severity, verdict: str, elapsed_time: datetime.time, response: HTTPResponse = None, error=None) -> ():
+    def __init__(self,
+                 endpoint: Endpoint, severity: Severity, verdict: str, elapsed_time: datetime.time,
+                 diff_request: HTTPRequest = None, response: HTTPResponse = None, error=None) -> ():
         self.endpoint = endpoint
         self.severity = severity
         self.verdict = verdict
         self.elapsed_time = elapsed_time
         self.response = response
         self.error = error
+
+        self.diff_request = diff_request
+        if self.diff_request is None:
+            self.diff_request = self.endpoint.interaction.request
 
     def color(self) -> list[int]:
         if self.severity == Severity.OK:
@@ -180,7 +186,7 @@ class TestResultFilter:
         self.min_severity = min_severity
 
     def use(self, tr: TestResult) -> bool:
-        ret = tr.severity.value[0] >= self.min_severity
+        ret = tr.severity.value >= self.min_severity
         if self.url is not None:
             ret &= self.url in tr.endpoint.url
         if self.http_type is not None:

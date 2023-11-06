@@ -210,6 +210,57 @@ class EndpointInput(object):
             imgui.end_tab_bar()
 
     @classmethod
+    def read_only_request(cls, request: model.HTTPRequest):
+        if request is None:
+            return False
+
+        ret = False
+
+        if not imgui.is_popup_open("Request"):
+            imgui.open_popup("Request")
+        if imgui.begin_popup_modal("Request"):
+            if imgui.begin_tab_bar("Request"):
+                if imgui.begin_tab_item("Body")[0]:
+                    # imgui.checkbox("JSON", request.body_json)
+
+                    language = None
+                    # if request.body_json:
+                    #     language = TextEditor.LanguageDefinition.json()
+                    
+                    imgui.push_id(0)
+                    cls.render_ed(
+                        "RO Request body",
+                        request.body,
+                        (-1, 250),
+                        language)
+
+                    imgui.pop_id()
+
+                    imgui.end_tab_item()
+
+                if imgui.begin_tab_item("Cookies")[0]:
+                    cls.read_only_cookies(request.cookies)
+                    imgui.end_tab_item()
+
+                if imgui.begin_tab_item("Headers")[0]:
+                    imgui.push_id(1)
+                    cls.render_ed(
+                            "RO Request headers",
+                            request.headers,
+                            (-1, 250))
+                    imgui.pop_id()
+                    imgui.end_tab_item()
+
+                imgui.end_tab_bar()
+
+                if imgui.button("Close"):
+                    ret = True
+
+            imgui.end_popup()
+        
+        return ret
+
+    @classmethod
     def read_only_response(cls, response: model.HTTPResponse) -> bool:
         if response is None:
             return False
@@ -401,7 +452,7 @@ class TestInputWindow:
 
         self.endpoint_table()
 
-        if EndpointInput.edit(self.endpoint_edit, "Edit Test"):
+        if EndpointInput.edit(self.endpoint_edit, "Editing Test"):
             self.endpoint_edit = None
 
         if self.controller.model.endpoints != []:
@@ -452,33 +503,44 @@ class TestResultsWindow:
     def __init__(self, parent):
         self.controller = parent.controller
 
+        self.endpoint_edit = None
+        self.request_details = None
         self.response_details = None
 
         self.result_filter = None
 
     def results_table(self):
         i = 0  # For button ids
-        if imgui.begin_table("Results", 8, View.table_flags, (0, 250)):
+        if imgui.begin_table("Results", 6, View.table_flags, (0, 250)):
             imgui.table_setup_scroll_freeze(0, 1)
             imgui.table_setup_column("URL", imgui.TableColumnFlags_.none)
-            imgui.table_setup_column("HTTP", imgui.TableColumnFlags_.none)
             imgui.table_setup_column("Severity", imgui.TableColumnFlags_.none)
             imgui.table_setup_column("Verdict", imgui.TableColumnFlags_.none)
             imgui.table_setup_column("Response", imgui.TableColumnFlags_.none)
             imgui.table_setup_column("Elapsed time", imgui.TableColumnFlags_.none)
             imgui.table_setup_column("Error", imgui.TableColumnFlags_.none)
-            imgui.table_setup_column("Actions", imgui.TableColumnFlags_.none)
             imgui.table_headers_row()
 
             for tr in self.controller.test_results():
                 imgui.table_next_column()
-                imgui.set_next_item_width(-1)
+
                 imgui.push_id(i + 0)
                 imgui.input_text("", tr.endpoint.url, imgui.InputTextFlags_.read_only)
                 imgui.pop_id()
-
-                imgui.table_next_column()
+                imgui.same_line()
                 imgui.text(tr.endpoint.http_type())
+                imgui.same_line()
+                
+                imgui.push_id(i + 1)
+                if imgui.button("Edit"):
+                    self.endpoint_edit = tr.endpoint
+                imgui.pop_id()
+                if id(tr.endpoint.interaction.request) != id(tr.diff_request):
+                    imgui.push_id(i + 2)
+                    imgui.same_line()
+                    if imgui.button("Request details"):
+                        self.request_details = tr.diff_request
+                    imgui.pop_id()
                   
                 imgui.table_next_column()
                 imgui.text_colored(tr.color(), str(tr.severity))
@@ -490,8 +552,8 @@ class TestResultsWindow:
                 if tr.response is None:
                     imgui.text("None")
                 else:
-                    imgui.push_id(i + 1)
-                    if imgui.button("Details"):
+                    imgui.push_id(i + 3)
+                    if imgui.button("Details", (-1, 0)):
                         self.response_details = tr.response
                     imgui.pop_id()
 
@@ -499,18 +561,18 @@ class TestResultsWindow:
                 imgui.text(str(tr.elapsed_time))
   
                 imgui.table_next_column()
-                imgui.set_next_item_width(-1)
-                imgui.push_id(i + 2)
+                imgui.push_id(i + 4)
                 imgui.input_text("", str(tr.error), imgui.InputTextFlags_.read_only)
                 imgui.pop_id()
-                  
-                imgui.table_next_column()
-                imgui.text("TODO!")
-                i += 3
+                i += 4
             imgui.end_table()
 
             if EndpointInput.read_only_response(self.response_details):
                 self.response_details = None
+            if EndpointInput.read_only_request(self.request_details):
+                self.request_details = None
+            if EndpointInput.edit(self.endpoint_edit, "Editing endpoint"):
+                self.endpoint_edit = None
 
     def gui(self):
         if self.controller.model.endpoints != []:
