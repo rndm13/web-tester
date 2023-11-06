@@ -1,16 +1,14 @@
 import validators
 import json
+import datetime
 
 from enum import Enum, StrEnum
 from http import HTTPStatus
-import requests
 
 import _pickle as pickle
 
 from imgui_bundle import imgui_color_text_edit as ed
 TextEditor = ed.TextEditor
-
-import datetime
 
 
 class HTTPType(StrEnum):
@@ -98,16 +96,34 @@ class Interaction:
 
 
 class Endpoint:
-    def __init__(self, url: str, interaction: Interaction) -> ():
+    def __init__(self, url: str, interaction: Interaction, match_test: bool = True, fuzz_test: bool = True, sqlinj_test: bool = False) -> ():
         self.url = url
         self.interaction = interaction
+        self.match_test = match_test
+        self.fuzz_test = fuzz_test
+        self.sqlinj_test = sqlinj_test
 
     def http_type(self) -> str:
         return self.interaction.request.http_type.value
 
+    def test_types(self) -> str:
+        results = []
+
+        if self.match_test:
+            results.append("Match")
+        if self.fuzz_test:
+            results.append("Fuzz")
+        if self.sqlinj_test:
+            results.append("SQL")
+
+        return ', '.join(results)
+
     def validate(self) -> str:
         if not validators.url(self.url):
             return "endpoint url must be a ... url?!?!"
+
+        if not self.match_test and not self.fuzz_test and not self.sqlinj_test:
+            return "must select at least one type of testing"
         
         return self.interaction.validate()
 
@@ -127,21 +143,22 @@ class EndpointFilter:
 
 
 class Severity(Enum):
-    OK = 0,
-    WARNING = 1,
-    DANGER = 2,
+    OK = 0
+    WARNING = 1
+    DANGER = 2
     CRITICAL = 3
 
     def __str__(self) -> str:
         strs = {0: "Ok", 1: "Warning", 2: "Danger", 3: "Critical"}
-        return strs[self.value[0]]
+        return strs[self.value]
 
 
 class TestResult:
-    def __init__(self, endpoint: Endpoint, severity: Severity, verdict: str, response: HTTPResponse = None, error=None) -> ():
+    def __init__(self, endpoint: Endpoint, severity: Severity, verdict: str, elapsed_time: datetime.time, response: HTTPResponse = None, error=None) -> ():
         self.endpoint = endpoint
         self.severity = severity
         self.verdict = verdict
+        self.elapsed_time = elapsed_time
         self.response = response
         self.error = error
 

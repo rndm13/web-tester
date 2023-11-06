@@ -1,0 +1,3 @@
+[submodule "fuzzdb"]
+	path = fuzzdb
+	url = https://github.com/fuzzdb-project/fuzzdb.git

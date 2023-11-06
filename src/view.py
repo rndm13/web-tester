@@ -262,6 +262,12 @@ class EndpointInput(object):
         return ret
 
     @classmethod
+    def vulnerabilities(cls, endpoint: model.Endpoint):
+        _, endpoint.match_test = imgui.checkbox("Basic input/output match test", endpoint.match_test)
+        _, endpoint.fuzz_test = imgui.checkbox("Fuzzing tests", endpoint.fuzz_test)
+        _, endpoint.sqlinj_test = imgui.checkbox("SQL injection tests", endpoint.sqlinj_test)
+
+    @classmethod
     def edit(cls, endpoint: model.Endpoint, label: str) -> bool:
         if endpoint is None:
             return False
@@ -290,6 +296,8 @@ class EndpointInput(object):
             if imgui.tree_node("Expected Response"):
                 cls.response_input(response)
                 imgui.tree_pop()
+
+            cls.vulnerabilities(endpoint)
             
             if imgui.button("Save", (50, 30)):
                 EndpointInput.validation = endpoint.validate()
@@ -405,12 +413,12 @@ class TestInputWindow:
                     self.controller.cancel_testing()
 
     def endpoint_table(self):
-
         i = 0  # For button ids
-        if imgui.begin_table("Tests", 3, View.table_flags, (0, 250)):
+        if imgui.begin_table("Tests", 4, View.table_flags, (0, 250)):
             imgui.table_setup_scroll_freeze(0, 1)
             imgui.table_setup_column("URL", imgui.TableColumnFlags_.none)
             imgui.table_setup_column("HTTP", imgui.TableColumnFlags_.none)
+            imgui.table_setup_column("Test types", imgui.TableColumnFlags_.none)
             imgui.table_setup_column("Actions", imgui.TableColumnFlags_.none)
             imgui.table_headers_row()
 
@@ -423,6 +431,9 @@ class TestInputWindow:
 
                 imgui.table_next_column()
                 imgui.text(ep.http_type())
+                
+                imgui.table_next_column()
+                imgui.text(ep.test_types())
                 
                 imgui.table_next_column()
                 imgui.push_id(i + 1)
@@ -447,20 +458,19 @@ class TestResultsWindow:
 
     def results_table(self):
         i = 0  # For button ids
-        if imgui.begin_table("Results", 7, View.table_flags, (0, 250)):
+        if imgui.begin_table("Results", 8, View.table_flags, (0, 250)):
             imgui.table_setup_scroll_freeze(0, 1)
             imgui.table_setup_column("URL", imgui.TableColumnFlags_.none)
             imgui.table_setup_column("HTTP", imgui.TableColumnFlags_.none)
             imgui.table_setup_column("Severity", imgui.TableColumnFlags_.none)
             imgui.table_setup_column("Verdict", imgui.TableColumnFlags_.none)
             imgui.table_setup_column("Response", imgui.TableColumnFlags_.none)
+            imgui.table_setup_column("Elapsed time", imgui.TableColumnFlags_.none)
             imgui.table_setup_column("Error", imgui.TableColumnFlags_.none)
             imgui.table_setup_column("Actions", imgui.TableColumnFlags_.none)
             imgui.table_headers_row()
 
             for tr in self.controller.test_results():
-                color = tr.color()
-
                 imgui.table_next_column()
                 imgui.set_next_item_width(-1)
                 imgui.push_id(i + 0)
@@ -468,22 +478,25 @@ class TestResultsWindow:
                 imgui.pop_id()
 
                 imgui.table_next_column()
-                imgui.text_colored(color, tr.endpoint.http_type())
+                imgui.text(tr.endpoint.http_type())
                   
                 imgui.table_next_column()
-                imgui.text_colored(color, str(tr.severity))
+                imgui.text_colored(tr.color(), str(tr.severity))
                   
                 imgui.table_next_column()
-                imgui.text_colored(color, tr.verdict)
+                imgui.text(tr.verdict)
                   
                 imgui.table_next_column()
                 if tr.response is None:
-                    imgui.text_colored(color, "None")
+                    imgui.text("None")
                 else:
                     imgui.push_id(i + 1)
                     if imgui.button("Details"):
                         self.response_details = tr.response
                     imgui.pop_id()
+
+                imgui.table_next_column()
+                imgui.text(str(tr.elapsed_time))
   
                 imgui.table_next_column()
                 imgui.set_next_item_width(-1)
@@ -492,7 +505,7 @@ class TestResultsWindow:
                 imgui.pop_id()
                   
                 imgui.table_next_column()
-                imgui.text_colored(color, "TODO!")
+                imgui.text("TODO!")
                 i += 3
             imgui.end_table()
 
@@ -500,7 +513,7 @@ class TestResultsWindow:
                 self.response_details = None
 
     def gui(self):
-        if self.controller.model.results != []:
+        if self.controller.model.endpoints != []:
             if not self.controller.in_progress:
                 if imgui.button("Test", (50, 30)):
                     self.controller.start_basic_testing()
@@ -510,7 +523,7 @@ class TestResultsWindow:
 
             imgui.same_line()
 
-            if imgui.button("Filter Tests", (0, 30)):
+            if imgui.button("Filter Results", (0, 30)):
                 self.result_filter = TestResultFilterInput(self)
         
         if self.result_filter is not None:
@@ -547,7 +560,7 @@ class View:
             imgui.set_cursor_pos_x(20)
             imgui.text("Running")
             imgui.same_line()
-            imgui.progress_bar(self.controller.progress, (200, 15))
+            imgui.progress_bar(self.controller.progress, (1000, 15))
 
     def menu(self):
         if imgui.begin_menu("File"):
