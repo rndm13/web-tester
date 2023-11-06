@@ -36,12 +36,12 @@ class EndpointInput(object):
         return editor.is_text_changed(), editor.get_text()
 
     @classmethod
-    def cookies(cls, cookies: dict[str, str]):
-        if imgui.button("Add new cookie!"):
+    def dict_input(cls, form: dict[str, str]):
+        if imgui.button("Add"):
             i = 1
-            while f"key_{i}" in cookies:
+            while f"key_{i}" in form:
                 i += 1
-            cookies[f"key_{i}"] = "value"
+            form[f"key_{i}"] = "value"
 
         i = 0  # For button ids
         to_remove = None  # on delete button click
@@ -57,7 +57,7 @@ class EndpointInput(object):
             new_key = ""
             changed_key_value = ""
 
-            for k, v in cookies.items():
+            for k, v in form.items():
                 imgui.push_id(i + 0)
 
                 imgui.table_next_column()
@@ -74,7 +74,7 @@ class EndpointInput(object):
                 imgui.set_next_item_width(-1)
                 changed, val = imgui.input_text("", v)
                 if changed:
-                    cookies[k] = val
+                    form[k] = val
 
                 imgui.pop_id()
                 imgui.push_id(i + 2)
@@ -87,16 +87,16 @@ class EndpointInput(object):
                 i += 3
 
             if to_remove is not None:
-                cookies.pop(to_remove)
+                form.pop(to_remove)
 
             if changed_key:
-                cookies.pop(old_key)
-                cookies[new_key] = changed_key_value
+                form.pop(old_key)
+                form[new_key] = changed_key_value
 
             imgui.end_table()
 
     @classmethod
-    def read_only_cookies(cls, cookies: dict[str, str]):
+    def read_only_dict(cls, form: dict[str, str]):
         i = 0  # For button ids
         if imgui.begin_table("Cookies", 2, View.table_flags, (0, 250)):
             imgui.table_setup_scroll_freeze(0, 1)
@@ -104,7 +104,7 @@ class EndpointInput(object):
             imgui.table_setup_column("Value", imgui.TableColumnFlags_.none)
             imgui.table_headers_row()
 
-            for k, v in cookies.items():
+            for k, v in form.items():
                 imgui.push_id(i + 0)
 
                 imgui.table_next_column()
@@ -124,31 +124,45 @@ class EndpointInput(object):
             imgui.end_table()
 
     @classmethod
+    def request_body_input(cls, request: model.HTTPRequest):
+        if request.http_type == model.HTTPType.DELETE:
+            request.body = None
+            imgui.text("DELETE requests don't have body")
+        elif request.http_type == model.HTTPType.GET:
+            if type(request.body) is not dict:
+                request.body_json = False
+                request.body = {}
+            cls.dict_input(request.body)
+        else:
+            if type(request.body) is not str:
+                request.body = ""
+            
+            _, request.body_json = imgui.checkbox("JSON", request.body_json)
+
+            language = None
+            if request.body_json:
+                language = TextEditor.LanguageDefinition.json()
+
+            imgui.push_id(0)
+            changed, request.body = cls.render_ed(
+                "Request body",
+                request.body,
+                (-1, 250),
+                language)
+
+            if changed:
+                request.prettify()
+
+            imgui.pop_id()
+
+    @classmethod
     def request_input(cls, request: model.HTTPRequest):
         if imgui.begin_tab_bar("Request"):
             if imgui.begin_tab_item("Body")[0]:
-                _, request.body_json = imgui.checkbox("JSON", request.body_json)
-
-                language = None
-                if request.body_json:
-                    language = TextEditor.LanguageDefinition.json()
-                
-                imgui.push_id(0)
-                changed, request.body = cls.render_ed(
-                    "Request body",
-                    request.body,
-                    (-1, 250),
-                    language)
-
-                if changed:
-                    request.prettify()
-
-                imgui.pop_id()
-
+                cls.request_body_input(request)
                 imgui.end_tab_item()
-
             if imgui.begin_tab_item("Cookies")[0]:
-                cls.cookies(request.cookies)
+                cls.dict_input(request.cookies)
                 imgui.end_tab_item()
 
             if imgui.begin_tab_item("Headers")[0]:
@@ -195,7 +209,7 @@ class EndpointInput(object):
                 imgui.end_tab_item()
 
             if imgui.begin_tab_item("Cookies")[0]:
-                cls.cookies(response.cookies)
+                cls.dict_input(response.cookies)
                 imgui.end_tab_item()
 
             if imgui.begin_tab_item("Headers")[0]:
@@ -210,6 +224,34 @@ class EndpointInput(object):
             imgui.end_tab_bar()
 
     @classmethod
+    def read_only_request_body(cls, request: model.HTTPRequest):
+        if request.http_type == model.HTTPType.DELETE:
+            pass
+        elif request.http_type == model.HTTPType.GET:
+            if type(request.body) is not dict:
+                request.body_json = False
+                request.body = {}
+
+            cls.dict_input(request.body)
+        else:
+            if type(request.body) is not str:
+                request.body = ""
+            
+            imgui.checkbox("JSON", request.body_json)
+
+            language = None
+            if request.body_json:
+                language = TextEditor.LanguageDefinition.json()
+
+            imgui.push_id(0)
+            cls.render_ed(
+                "Request body",
+                request.body,
+                (-1, 250),
+                language)
+            imgui.pop_id()
+
+    @classmethod
     def read_only_request(cls, request: model.HTTPRequest):
         if request is None:
             return False
@@ -221,25 +263,11 @@ class EndpointInput(object):
         if imgui.begin_popup_modal("Request"):
             if imgui.begin_tab_bar("Request"):
                 if imgui.begin_tab_item("Body")[0]:
-                    # imgui.checkbox("JSON", request.body_json)
-
-                    language = None
-                    # if request.body_json:
-                    #     language = TextEditor.LanguageDefinition.json()
-                    
-                    imgui.push_id(0)
-                    cls.render_ed(
-                        "RO Request body",
-                        request.body,
-                        (-1, 250),
-                        language)
-
-                    imgui.pop_id()
-
+                    cls.read_only_request_body(request)
                     imgui.end_tab_item()
 
                 if imgui.begin_tab_item("Cookies")[0]:
-                    cls.read_only_cookies(request.cookies)
+                    cls.read_only_dict(request.cookies)
                     imgui.end_tab_item()
 
                 if imgui.begin_tab_item("Headers")[0]:
@@ -291,7 +319,7 @@ class EndpointInput(object):
                     imgui.end_tab_item()
 
                 if imgui.begin_tab_item("Cookies")[0]:
-                    cls.read_only_cookies(response.cookies)
+                    cls.read_only_dict(response.cookies)
                     imgui.end_tab_item()
 
                 if imgui.begin_tab_item("Headers")[0]:

@@ -1,5 +1,7 @@
 from functools import partial
 from typing import Callable
+import string
+import rstr
 from copy import deepcopy
 
 from concurrent import futures
@@ -192,17 +194,47 @@ class Controller:
 
         return self.handle_request(endpoint, handle_response)
 
+    def fuzz_test(self, endpoint: model.Endpoint) -> model.TestResult:
+        request = deepcopy(endpoint.interaction.request)
+
+        request.body = rstr.rstr(string.printable)
+
+        def handle_response(response: requests.Response):
+            model_http_response = response_convert(response)
+
+            verdict = "Got expected response"
+            severity = model.Severity.OK
+            
+            # if status isn't client error we check for errors in response
+            if not model_http_response.http_status.is_client_error and match_errors(model_http_response.body):
+                verdict = "Found non-client errors in response"
+                severity = model.Severity.CRITICAL
+            elif endpoint.interaction.response.body_json != model_http_response.body_json:
+                verdict = "Unmatched body type"
+                severity = model.Severity.CRITICAL
+
+            return model.TestResult(endpoint, severity, verdict,
+                                    response.elapsed, request, model_http_response)
+
+        return self.handle_request(endpoint, handle_response, request)
+
     def run_tests(self):
         self.in_progress = True
         self.progress = 0
-        count = len(self.model.endpoints)
 
         thrs = []
         results = []
         for endpoint in self.model.endpoints:
-            log(LogLevel.info, f"Starting test for {endpoint.url} {endpoint.http_type()}")
-            thrs.append(self.thread_pool.submit(Controller.match_test, self, endpoint))
+            if endpoint.match_test:
+                log(LogLevel.info, f"Starting match test for {endpoint.url} {endpoint.http_type()}")
+                thrs.append(self.thread_pool.submit(Controller.match_test, self, endpoint))
+            if endpoint.fuzz_test:
+                fuzz_test_count = 5
+                for i in range(0, fuzz_test_count):
+                    log(LogLevel.info, f"Starting fuzz test for {endpoint.url} {endpoint.http_type()}")
+                    thrs.append(self.thread_pool.submit(Controller.fuzz_test, self, endpoint))
 
+        count = len(thrs)
         for thr in thrs:
             try:
                 results.append(thr.result(timeout=None))
