@@ -1,5 +1,7 @@
 from functools import partial
+from typing import Callable
 from copy import deepcopy
+
 from concurrent import futures
 
 import re
@@ -122,45 +124,11 @@ class Controller:
         if endpoint.http_type() == model.HTTPType.DELETE:
             return requests.delete(endpoint.url, endpoint.interaction.request.body, headers=headers, cookies=endpoint.interaction.request.cookies, timeout=self.max_wait)
 
-    def basic_test(self, endpoint: model.Endpoint) -> model.TestResult:
-        def value_lower(t):
-            (k, v) = t
-            return (k, v.lower())
-
+    def handle_request(self, endpoint: model.Endpoint, handler: Callable[[requests.Response], model.TestResult]) -> model.TestResult:
         try:
             response = self.make_request(endpoint)
             log(LogLevel.info, f"Got response from {endpoint.url} {endpoint.http_type()}")
-            model_http_response = response_convert(response)
-            expected_response_header_set = set(map(value_lower, str_to_dict(endpoint.interaction.response.headers).items()))  # response headers but values are lowercase
-            response_header_set = set(map(value_lower, response.headers.items()))  # response headers but values are lowercase
-
-            verdict = "Got expected response"
-            severity = model.Severity.OK
-
-            if match_errors(model_http_response.body):
-                verdict = "Found errors in response"
-                severity = model.Severity.CRITICAL
-            elif endpoint.interaction.response.body_json != model_http_response.body_json:
-                verdict = "Unmatched body type"
-                severity = model.Severity.CRITICAL
-            elif endpoint.interaction.response.body != "" and endpoint.interaction.response.body != model_http_response.body:
-                verdict = "Unmatched body"
-                severity = model.Severity.CRITICAL
-            elif endpoint.interaction.response.http_status != HTTPStatus(response.status_code):
-                verdict = "Unmatched return status"
-                severity = model.Severity.DANGER
-            # checks if expected response cookies are subset of received
-            elif not set(endpoint.interaction.response.cookies).issubset(set(response.cookies)):
-                verdict = "Unmatched cookies"
-                severity = model.Severity.DANGER
-            # checks if expected response headers are subset of received
-            elif not expected_response_header_set.issubset(response_header_set):
-                verdict = "Unmatched headers"
-                severity = model.Severity.DANGER
-
-            return model.TestResult(endpoint, severity, verdict,
-                                    response.elapsed, model_http_response)
-
+            return handler(endpoint, response)
         except requests.ConnectTimeout as error:
             log(LogLevel.error, f"Connection timeout for {endpoint.url} {endpoint.http_type()}")
             return model.TestResult(endpoint, model.Severity.WARNING, "Connection timeout",
@@ -178,6 +146,42 @@ class Controller:
             return model.TestResult(endpoint, model.Severity.DANGER, "Unknown error",
                                     None, error=error)
 
+    def basic_test(self, endpoint: model.Endpoint, response: requests.Response) -> model.TestResult:
+        def value_lower(t):
+            (k, v) = t
+            return (k, v.lower())
+
+        model_http_response = response_convert(response)
+        expected_response_header_set = set(map(value_lower, str_to_dict(endpoint.interaction.response.headers).items()))  # response headers but values are lowercase
+        response_header_set = set(map(value_lower, response.headers.items()))  # response headers but values are lowercase
+
+        verdict = "Got expected response"
+        severity = model.Severity.OK
+
+        if match_errors(model_http_response.body):
+            verdict = "Found errors in response"
+            severity = model.Severity.CRITICAL
+        elif endpoint.interaction.response.body_json != model_http_response.body_json:
+            verdict = "Unmatched body type"
+            severity = model.Severity.CRITICAL
+        elif endpoint.interaction.response.body != "" and endpoint.interaction.response.body != model_http_response.body:
+            verdict = "Unmatched body"
+            severity = model.Severity.CRITICAL
+        elif endpoint.interaction.response.http_status != HTTPStatus(response.status_code):
+            verdict = "Unmatched return status"
+            severity = model.Severity.DANGER
+        # checks if expected response cookies are subset of received
+        elif not set(endpoint.interaction.response.cookies).issubset(set(response.cookies)):
+            verdict = "Unmatched cookies"
+            severity = model.Severity.DANGER
+        # checks if expected response headers are subset of received
+        elif not expected_response_header_set.issubset(response_header_set):
+            verdict = "Unmatched headers"
+            severity = model.Severity.DANGER
+
+        return model.TestResult(endpoint, severity, verdict,
+                                response.elapsed, model_http_response)
+
     def run_basic_tests(self):
         self.in_progress = True
         self.progress = 0
@@ -187,7 +191,9 @@ class Controller:
         results = []
         for endpoint in self.model.endpoints:
             log(LogLevel.info, f"Starting test for {endpoint.url} {endpoint.http_type()}")
-            thrs.append(self.thread_pool.submit(Controller.basic_test, self, endpoint))
+            thrs.append(self.thread_pool.submit(
+                Controller.handle_request, self, endpoint,
+                lambda e, r: self.basic_test(e, r)))
 
         for thr in thrs:
             try:
