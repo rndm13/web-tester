@@ -8,8 +8,10 @@ from http import HTTPStatus
 
 import _pickle as pickle
 
-from imgui_bundle import imgui_color_text_edit as ed
+from imgui_bundle import imgui_color_text_edit as ed, hello_imgui
 TextEditor = ed.TextEditor
+log = hello_imgui.log
+LogLevel = hello_imgui.LogLevel
 
 
 class HTTPType(StrEnum):
@@ -102,10 +104,43 @@ class Interaction:
         return self.request.http_type.value
 
 
+class Wordlist:
+    wordlists = {}  # NOTE: doesn't get saved in files
+
+    def __init__(self, filename: str):
+        self.filename = filename
+
+    def get(self) -> list[str]:
+        if self.filename not in Wordlist.wordlists:
+            file = open(self.filename, "r")
+            Wordlist.wordlists[self.filename] = list(map(lambda s: s.strip(), file.readlines()))
+        return Wordlist.wordlists[self.filename]
+
+    @classmethod
+    def unload(cls, filename: str) -> ():
+        cls.wordlists.pop(filename)
+
+
+class FuzzTest:
+    def __init__(self, count: int = 10):
+        self.count = count
+
+
+class SQLInjectionTest:
+    def __init__(self, count: int = 10, wordlist: Wordlist = Wordlist('./fuzzdb/attack/sql-injection/detect/GenericBlind.txt')):
+        self.count = count
+        self.wordlist = wordlist
+
+    def wordlist(self):
+        return self.wordlist.get()
+
+
 class Endpoint:
-    def __init__(self, url: str, interaction: Interaction, match_test: bool = True, fuzz_test: bool = True, sqlinj_test: bool = False) -> ():
+    def __init__(self, url: str, interaction: Interaction, max_wait_time: int = 10,
+                 match_test: bool = True, fuzz_test: FuzzTest = FuzzTest(), sqlinj_test: SQLInjectionTest = None) -> ():
         self.url = url
         self.interaction = interaction
+        self.max_wait_time = max_wait_time
         self.match_test = match_test
         self.fuzz_test = fuzz_test
         self.sqlinj_test = sqlinj_test
@@ -118,9 +153,9 @@ class Endpoint:
 
         if self.match_test:
             results.append("Match")
-        if self.fuzz_test:
+        if self.fuzz_test is not None:
             results.append("Fuzz")
-        if self.sqlinj_test:
+        if self.sqlinj_test is not None:
             results.append("SQL")
 
         return ', '.join(results)
@@ -129,7 +164,7 @@ class Endpoint:
         if not validators.url(self.url):
             return "endpoint url must be a ... url?!?!"
 
-        if not self.match_test and not self.fuzz_test and not self.sqlinj_test:
+        if not self.match_test and self.fuzz_test is None and self.sqlinj_test is None:
             return "must select at least one type of testing"
         
         return self.interaction.validate()

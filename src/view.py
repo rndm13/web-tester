@@ -341,13 +341,69 @@ class EndpointInput(object):
         return ret
 
     @classmethod
+    def fuzz_test(cls, endpoint: model.Endpoint):
+        if endpoint.interaction.request.http_type == model.HTTPType.DELETE:
+            endpoint.fuzz_test = None
+            return
+
+        changed, fuzz_test = imgui.checkbox("Fuzz tests", endpoint.fuzz_test is not None)
+        if changed:
+            if fuzz_test:
+                endpoint.fuzz_test = model.FuzzTest()
+            else:
+                endpoint.fuzz_test = None
+        if fuzz_test:
+            imgui.same_line()
+            imgui.push_id(0)
+            changed, endpoint.fuzz_test.count = imgui.input_int("Test count", endpoint.fuzz_test.count)
+            if changed:
+                endpoint.fuzz_test.count = max(1, endpoint.fuzz_test.count)
+            imgui.pop_id()
+
+    sqlinj_file_open = None
+
+    @classmethod
+    def sqlinj_test(cls, endpoint: model.Endpoint):
+        if endpoint.interaction.request.http_type == model.HTTPType.DELETE:
+            endpoint.sqlinj_test = None
+            return
+
+        changed, sqlinj_test = imgui.checkbox("SQL injection tests", endpoint.sqlinj_test is not None)
+        if changed:
+            if sqlinj_test:
+                endpoint.sqlinj_test = model.SQLInjectionTest()
+            else:
+                endpoint.sqlinj_test = None
+        if sqlinj_test:
+            imgui.same_line()
+            imgui.push_id(0)
+            changed, endpoint.sqlinj_test.count = imgui.input_int("Test count", endpoint.sqlinj_test.count)
+            if changed:
+                endpoint.sqlinj_test.count = max(1, endpoint.sqlinj_test.count)
+            imgui.pop_id()
+
+            imgui.push_id(1)
+            imgui.input_text("Wordlist file", endpoint.sqlinj_test.wordlist.filename, imgui.InputTextFlags_.read_only)
+            imgui.pop_id()
+
+            imgui.same_line()
+            if imgui.button("Open different"):
+                cls.sqlinj_file_open = pfd.open_file("Open a wordlist", "./fuzzdb/", ["*"])
+
+            if cls.sqlinj_file_open is not None and cls.sqlinj_file_open.ready():
+                if cls.sqlinj_file_open.result() is not None and cls.sqlinj_file_open.result() != []:  # can open multiple files
+                    endpoint.sqlinj_test.wordlist = model.Wordlist(cls.sqlinj_file_open.result()[0])
+                    cls.sqlinj_file_open = None
+
+    @classmethod
     def vulnerabilities(cls, endpoint: model.Endpoint):
         _, endpoint.match_test = imgui.checkbox("Basic input/output match test", endpoint.match_test)
-        if endpoint.interaction.request.http_type != model.HTTPType.DELETE:
-            _, endpoint.fuzz_test = imgui.checkbox("Fuzzing tests", endpoint.fuzz_test)
-        else:
-            endpoint.fuzz_test = False
-        _, endpoint.sqlinj_test = imgui.checkbox("SQL injection tests", endpoint.sqlinj_test)
+        imgui.push_id("fuzz_test")
+        cls.fuzz_test(endpoint)
+        imgui.pop_id()
+        imgui.push_id("sqlinj_test")
+        cls.sqlinj_test(endpoint)
+        imgui.pop_id()
 
     @classmethod
     def edit(cls, endpoint: model.Endpoint, label: str) -> bool:
@@ -380,6 +436,10 @@ class EndpointInput(object):
                 imgui.tree_pop()
 
             cls.vulnerabilities(endpoint)
+
+            changed, endpoint.max_wait_time = imgui.input_int("Max wait time (seconds)", endpoint.max_wait_time)
+            if changed:
+                endpoint.max_wait_time = max(1, endpoint.max_wait_time)
             
             if imgui.button("Save", (50, 30)):
                 EndpointInput.validation = endpoint.validate()

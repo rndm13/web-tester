@@ -1,7 +1,9 @@
-from functools import partial
 from typing import Callable
+
+from functools import partial
 import string
 import rstr
+import random
 from copy import deepcopy
 
 from concurrent import futures
@@ -49,7 +51,7 @@ def response_convert(response: requests.Response) -> model.HTTPResponse:
 
 
 class Controller:
-    def __init__(self, model: model.Model = model.Model([], []), thread_pool: futures.ThreadPoolExecutor = futures.ThreadPoolExecutor(4), max_wait: int = 2):
+    def __init__(self, model: model.Model = model.Model([], []), thread_pool: futures.ThreadPoolExecutor = futures.ThreadPoolExecutor(4)):
         self.model = model
         self.thread_pool = thread_pool
 
@@ -62,8 +64,6 @@ class Controller:
         self.in_progress = False
         self.progress = None
         self.testing_thread = None
-
-        self.max_wait = max_wait
 
     def add_endpoint(self, endpoint: model.Endpoint):
         self.model.add_endpoint(endpoint)
@@ -126,13 +126,13 @@ class Controller:
             request = endpoint.interaction.request
         headers = str_to_dict(request.headers)
         if endpoint.http_type() == model.HTTPType.GET:
-            return requests.get(endpoint.url, request.body, headers=headers, cookies=request.cookies, timeout=self.max_wait)
+            return requests.get(endpoint.url, request.body, headers=headers, cookies=request.cookies, timeout=endpoint.max_wait_time)
         if endpoint.http_type() == model.HTTPType.POST:
-            return requests.post(endpoint.url, request.body, headers=headers, cookies=request.cookies, timeout=self.max_wait)
+            return requests.post(endpoint.url, request.body, headers=headers, cookies=request.cookies, timeout=endpoint.max_wait_time)
         if endpoint.http_type() == model.HTTPType.PUT:
-            return requests.put(endpoint.url, request.body, headers=headers, cookies=request.cookies, timeout=self.max_wait)
+            return requests.put(endpoint.url, request.body, headers=headers, cookies=request.cookies, timeout=endpoint.max_wait_time)
         if endpoint.http_type() == model.HTTPType.DELETE:
-            return requests.delete(endpoint.url, headers=headers, cookies=request.cookies, timeout=self.max_wait)
+            return requests.delete(endpoint.url, headers=headers, cookies=request.cookies, timeout=endpoint.max_wait_time)
 
     def handle_request(self, endpoint: model.Endpoint, handler: Callable[[requests.Response], model.TestResult], diff_request: model.HTTPRequest = None) -> model.TestResult:
         if diff_request is None:
@@ -145,7 +145,7 @@ class Controller:
             return handler(response)
         except requests.ConnectTimeout as error:
             log(LogLevel.error, f"Connection timeout for {endpoint.url} {endpoint.http_type()}")
-            return model.TestResult(endpoint, model.Severity.WARNING, "Connection timeout",
+            return model.TestResult(endpoint, model.Severity.CRITICAL, "Connection timeout (exceeded max set for endpoint)",
                                     None, error=error, diff_request=diff_request)
         except requests.ConnectionError as error:
             log(LogLevel.error, f"Connection error for {endpoint.url} {endpoint.http_type()}")
@@ -208,10 +208,43 @@ class Controller:
             case model.HTTPType.POST | model.HTTPType.PUT:
                 request.body = rstr.rstr(string.printable)
             case model.HTTPType.DELETE:
-                return model.TestResult(endpoint, model.Severity.WARNING, "Cannot fuzz test DELETE reqeuests", None)
+                return model.TestResult(endpoint, model.Severity.WARNING, "Cannot do fuzz tests for DELETE requests", None)
             case model.HTTPType.GET:
                 for k in request.body.keys():  # should be a dictionary
                     request.body[k] = rstr.rstr(string.printable)
+
+        def handle_response(response: requests.Response):
+            model_http_response = response_convert(response)
+
+            verdict = "Got expected response"
+            severity = model.Severity.OK
+            
+            # if status isn't client error we check for errors in response
+            if not model_http_response.http_status.is_client_error and match_errors(model_http_response.body):
+                verdict = "Found non-client errors in response"
+                severity = model.Severity.CRITICAL
+            elif endpoint.interaction.response.body_json != model_http_response.body_json:
+                verdict = "Unmatched body type"
+                severity = model.Severity.CRITICAL
+
+            return model.TestResult(endpoint, severity, verdict,
+                                    response.elapsed, request, model_http_response)
+
+        return self.handle_request(endpoint, handle_response, request)
+
+    def sqlinj_test(self, endpoint: model.Endpoint) -> model.TestResult:
+        request = deepcopy(endpoint.interaction.request)
+
+        # generating request body
+        wordlist = endpoint.sqlinj_test.wordlist.get()
+        match request.http_type:
+            case model.HTTPType.POST | model.HTTPType.PUT:
+                request.body = wordlist[random.randint(0, len(wordlist) - 1)]
+            case model.HTTPType.DELETE:
+                return model.TestResult(endpoint, model.Severity.WARNING, "Cannot do sql injection tests for DELETE requests", None)
+            case model.HTTPType.GET:
+                for k in request.body.keys():  # should be a dictionary
+                    request.body[k] = wordlist[random.randint(0, len(wordlist) - 1)]
 
         def handle_response(response: requests.Response):
             model_http_response = response_convert(response)
@@ -242,11 +275,14 @@ class Controller:
             if endpoint.match_test:
                 log(LogLevel.info, f"Starting match test for {endpoint.url} {endpoint.http_type()}")
                 thrs.append(self.thread_pool.submit(Controller.match_test, self, endpoint))
-            if endpoint.fuzz_test:
-                fuzz_test_count = 5
-                for i in range(0, fuzz_test_count):
+            if endpoint.fuzz_test is not None:
+                for i in range(0, endpoint.fuzz_test.count):
                     log(LogLevel.info, f"Starting fuzz test for {endpoint.url} {endpoint.http_type()}")
                     thrs.append(self.thread_pool.submit(Controller.fuzz_test, self, endpoint))
+            if endpoint.sqlinj_test is not None:
+                for i in range(0, endpoint.sqlinj_test.count):
+                    log(LogLevel.info, f"Starting SQL injection test for {endpoint.url} {endpoint.http_type()}")
+                    thrs.append(self.thread_pool.submit(Controller.sqlinj_test, self, endpoint))
 
         count = len(thrs)
         for thr in thrs:
