@@ -232,7 +232,7 @@ class EndpointInput(object):
                 request.body_json = False
                 request.body = {}
 
-            cls.dict_input(request.body)
+            cls.read_only_dict(request.body)
         else:
             if type(request.body) is not str:
                 request.body = ""
@@ -343,7 +343,10 @@ class EndpointInput(object):
     @classmethod
     def vulnerabilities(cls, endpoint: model.Endpoint):
         _, endpoint.match_test = imgui.checkbox("Basic input/output match test", endpoint.match_test)
-        _, endpoint.fuzz_test = imgui.checkbox("Fuzzing tests", endpoint.fuzz_test)
+        if endpoint.interaction.request.http_type != model.HTTPType.DELETE:
+            _, endpoint.fuzz_test = imgui.checkbox("Fuzzing tests", endpoint.fuzz_test)
+        else:
+            endpoint.fuzz_test = False
         _, endpoint.sqlinj_test = imgui.checkbox("SQL injection tests", endpoint.sqlinj_test)
 
     @classmethod

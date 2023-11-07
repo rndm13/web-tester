@@ -106,14 +106,20 @@ class Controller:
         return self.results_filtered
 
     def open(self, filename: str):
-        log(LogLevel.info, f"Loading file: {filename}")
-        self.model = model.Model.load(filename)
-        self.set_endpoint_filter(None)
-        self.set_result_filter(None)
+        try:
+            log(LogLevel.info, f"Loading file: {filename}")
+            self.model = model.Model.load(filename)
+            self.set_endpoint_filter(None)
+            self.set_result_filter(None)
+        except Exception as e:
+            log(LogLevel.error, f"Failed loading file {str(e)}")
     
     def save(self, filename: str):
-        log(LogLevel.info, f"Saving to file: {filename}")
-        self.model.save(filename)
+        try:
+            log(LogLevel.info, f"Saving to file: {filename}")
+            self.model.save(filename)
+        except Exception as e:
+            log(LogLevel.error, f"Failed saving to file {str(e)}")
 
     def make_request(self, endpoint: model.Endpoint, request: model.HTTPRequest = None) -> requests.Response:
         if request is None:
@@ -126,7 +132,7 @@ class Controller:
         if endpoint.http_type() == model.HTTPType.PUT:
             return requests.put(endpoint.url, request.body, headers=headers, cookies=request.cookies, timeout=self.max_wait)
         if endpoint.http_type() == model.HTTPType.DELETE:
-            return requests.delete(endpoint.url, request.body, headers=headers, cookies=request.cookies, timeout=self.max_wait)
+            return requests.delete(endpoint.url, headers=headers, cookies=request.cookies, timeout=self.max_wait)
 
     def handle_request(self, endpoint: model.Endpoint, handler: Callable[[requests.Response], model.TestResult], diff_request: model.HTTPRequest = None) -> model.TestResult:
         if diff_request is None:
@@ -197,7 +203,15 @@ class Controller:
     def fuzz_test(self, endpoint: model.Endpoint) -> model.TestResult:
         request = deepcopy(endpoint.interaction.request)
 
-        request.body = rstr.rstr(string.printable)
+        # generating request body
+        match request.http_type:
+            case model.HTTPType.POST | model.HTTPType.PUT:
+                request.body = rstr.rstr(string.printable)
+            case model.HTTPType.DELETE:
+                return model.TestResult(endpoint, model.Severity.WARNING, "Cannot fuzz test DELETE reqeuests", None)
+            case model.HTTPType.GET:
+                for k in request.body.keys():  # should be a dictionary
+                    request.body[k] = rstr.rstr(string.printable)
 
         def handle_response(response: requests.Response):
             model_http_response = response_convert(response)

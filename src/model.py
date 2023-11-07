@@ -1,3 +1,4 @@
+from typing import Union
 import validators
 import json
 import datetime
@@ -19,11 +20,17 @@ class HTTPType(StrEnum):
 
 
 class HTTPRequest:
-    def __init__(self, http_type: HTTPType, headers: str = "", body: str = "", body_json: bool = False, cookies: dict[str, str] = {}):
+    def __init__(self, http_type: HTTPType, body: Union[str, dict[str, str]] = None, body_json: bool = False, headers: str = "", cookies: dict[str, str] = {}):
         self.http_type = http_type
-        self.headers = headers
         self.body = body
+        if self.body is None:
+            match self.http_type:
+                case HTTPType.GET:
+                    self.body = {}
+                case HTTPType.POST | HTTPType.PUT:
+                    self.body = ""
         self.body_json = body_json
+        self.headers = headers
         self.cookies = cookies
         self.prettify()
 
