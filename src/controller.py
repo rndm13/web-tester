@@ -226,7 +226,7 @@ class Controller:
             case model.HTTPType.DELETE:
                 return model.TestResult(endpoint, model.Severity.WARNING, "Cannot do fuzz tests for DELETE requests", None)
             case model.HTTPType.GET:
-                for k in request.body.keys():  # should be a dictionary
+                for k in endpoint.interaction.request.body.keys():  # should be a dictionary
                     request.body[k] = rstr.rstr(string.printable)
 
         def handle_response(response: requests.Response):

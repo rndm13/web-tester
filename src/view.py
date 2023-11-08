@@ -6,6 +6,8 @@ from http import HTTPStatus
 
 from imgui_bundle import imgui, hello_imgui, imgui_color_text_edit as ed, portable_file_dialogs as pfd
 TextEditor = ed.TextEditor
+log = hello_imgui.log
+LogLevel = hello_imgui.LogLevel
 
 
 class EndpointInput(object):
@@ -27,7 +29,7 @@ class EndpointInput(object):
         editor = cls.get_editor(label)
         editor.set_language_definition(language)
 
-        if editor.is_text_changed() or editor.get_text() == "":
+        if editor.is_text_changed() or editor.get_text() != text:
             editor.set_text(text)
 
         editor.render(label, False, size, False)
@@ -245,7 +247,7 @@ class EndpointInput(object):
 
             imgui.push_id(0)
             cls.render_ed(
-                "Request body",
+                "RO Request body",
                 request.body,
                 (-1, 250),
                 language)
@@ -659,7 +661,7 @@ class TestResultsWindow:
                 imgui.push_id(i + 4)
                 imgui.input_text("", str(tr.error), imgui.InputTextFlags_.read_only)
                 imgui.pop_id()
-                i += 4
+                i += 5
             imgui.end_table()
 
             if EndpointInput.read_only_response(self.response_details):
@@ -688,7 +690,7 @@ class TestResultsWindow:
                 self.result_filter.gui()
 
                 if imgui.button("Filter", (100, 30)):
-                    self.controller.set_result_filter(copy.deepcopy(self.result_filter.filt))
+                    self.controller.set_result_filter(copy.deepcopy(self.result_filter.filt()))
                 imgui.same_line()
                 if imgui.button("Cancel", (100, 30)):
                     self.result_filter = None
