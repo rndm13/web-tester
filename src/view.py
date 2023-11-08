@@ -354,11 +354,13 @@ class EndpointInput(object):
                 endpoint.fuzz_test = None
         if fuzz_test:
             imgui.same_line()
-            imgui.push_id(0)
-            changed, endpoint.fuzz_test.count = imgui.input_int("Test count", endpoint.fuzz_test.count)
-            if changed:
-                endpoint.fuzz_test.count = max(1, endpoint.fuzz_test.count)
-            imgui.pop_id()
+            if imgui.tree_node("Details"):
+                imgui.push_id(0)
+                changed, endpoint.fuzz_test.count = imgui.input_int("Test count", endpoint.fuzz_test.count)
+                if changed:
+                    endpoint.fuzz_test.count = max(1, endpoint.fuzz_test.count)
+                imgui.pop_id()
+                imgui.tree_pop()
 
     sqlinj_file_open = None
 
@@ -376,24 +378,26 @@ class EndpointInput(object):
                 endpoint.sqlinj_test = None
         if sqlinj_test:
             imgui.same_line()
-            imgui.push_id(0)
-            changed, endpoint.sqlinj_test.count = imgui.input_int("Test count", endpoint.sqlinj_test.count)
-            if changed:
-                endpoint.sqlinj_test.count = max(1, endpoint.sqlinj_test.count)
-            imgui.pop_id()
+            if imgui.tree_node("Details"):
+                imgui.push_id(0)
+                changed, endpoint.sqlinj_test.count = imgui.input_int("Test count", endpoint.sqlinj_test.count)
+                if changed:
+                    endpoint.sqlinj_test.count = max(1, endpoint.sqlinj_test.count)
+                imgui.pop_id()
 
-            imgui.push_id(1)
-            imgui.input_text("Wordlist file", endpoint.sqlinj_test.wordlist.filename, imgui.InputTextFlags_.read_only)
-            imgui.pop_id()
+                imgui.push_id(1)
+                imgui.input_text("Wordlist file", endpoint.sqlinj_test.wordlist.filename, imgui.InputTextFlags_.read_only)
+                imgui.pop_id()
 
-            imgui.same_line()
-            if imgui.button("Open different"):
-                cls.sqlinj_file_open = pfd.open_file("Open a wordlist", "./fuzzdb/", ["*"])
+                imgui.same_line()
+                if imgui.button("Open different"):
+                    cls.sqlinj_file_open = pfd.open_file("Open a wordlist", "./fuzzdb/", ["*"])
 
-            if cls.sqlinj_file_open is not None and cls.sqlinj_file_open.ready():
-                if cls.sqlinj_file_open.result() is not None and cls.sqlinj_file_open.result() != []:  # can open multiple files
-                    endpoint.sqlinj_test.wordlist = model.Wordlist(cls.sqlinj_file_open.result()[0])
-                    cls.sqlinj_file_open = None
+                if cls.sqlinj_file_open is not None and cls.sqlinj_file_open.ready():
+                    if cls.sqlinj_file_open.result() is not None and cls.sqlinj_file_open.result() != []:  # can open multiple files
+                        endpoint.sqlinj_test.wordlist = model.Wordlist(cls.sqlinj_file_open.result()[0])
+                        cls.sqlinj_file_open = None
+                imgui.tree_pop()
 
     @classmethod
     def vulnerabilities(cls, endpoint: model.Endpoint):
