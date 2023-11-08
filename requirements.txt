@@ -2,3 +2,4 @@ imgui_bundle
 validators
 requests
 rstr
+python-docx

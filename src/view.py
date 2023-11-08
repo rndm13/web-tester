@@ -709,6 +709,7 @@ class View:
 
         self.file_save = None
         self.file_open = None
+        self.file_export = None
 
     def status_bar(self):
         if self.controller.in_progress:
@@ -726,12 +727,18 @@ class View:
 
             if imgui.menu_item("Open", "Ctrl+O", False)[0]:
                 self.file_open = pfd.open_file("Open a save", "", ["*.wt"])
+
+            imgui.separator()
+            
+            if imgui.menu_item("Export results", "", False, self.controller.model.results != [])[0]:
+                self.file_export = pfd.save_file("Select where to export", "", ["*.docx"])
+
             imgui.end_menu()
 
-        if imgui.begin_menu("Test"):
-            if imgui.menu_item("Basic tests", "", False)[0]:
-                self.controller.start_basic_testing()
-            imgui.end_menu()
+        # if imgui.begin_menu("Test"):
+        #     if imgui.menu_item("Basic tests", "", False)[0]:
+        #         self.controller.start_basic_testing()
+        #     imgui.end_menu()
 
         if self.file_save is not None and self.file_save.ready():
             if self.file_save.result() is not None and self.file_save.result() != "":
@@ -742,6 +749,11 @@ class View:
             if self.file_open.result() is not None and self.file_open.result() != []:  # can open multiple files
                 self.controller.open(self.file_open.result()[0])
                 self.file_open = None
+
+        if self.file_export is not None and self.file_export.ready():
+            if self.file_export.result() is not None and self.file_export.result() != "":
+                self.controller.export(self.file_export.result())
+                self.file_export = None
 
     def app_menu(self):
         imgui.text("Hello!\nI should probably add about here or something...")

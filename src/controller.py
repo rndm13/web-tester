@@ -14,6 +14,7 @@ import requests
 from http import HTTPStatus
 
 import model
+import reports
 
 from imgui_bundle import hello_imgui
 log = hello_imgui.log
@@ -121,6 +122,18 @@ class Controller:
         except Exception as e:
             log(LogLevel.error, f"Failed saving to file {str(e)}")
 
+    def export(self, filename: str):
+        if self.model.results == []:
+            log(LogLevel.warning, "No results to export")
+            return
+
+        try:
+            log(LogLevel.info, f"Exporting results to file: {filename}")
+            reports.export_test_results(filename, self.model.results)
+
+        except Exception as e:
+            log(LogLevel.error, f"Failed exporting to file: {str(e)}")
+
     def make_request(self, endpoint: model.Endpoint, request: model.HTTPRequest = None) -> requests.Response:
         if request is None:
             request = endpoint.interaction.request
@@ -177,7 +190,10 @@ class Controller:
             if not endpoint.interaction.response.http_status.is_client_error and match_errors(model_http_response.body):
                 verdict = "Found errors in response"
                 severity = model.Severity.CRITICAL
-            elif endpoint.interaction.response.body_json != model_http_response.body_json:
+            elif model_http_response.http_status.is_server_error:
+                verdict = "Server error in status found"
+                severity = model.Severity.CRITICAL
+            elif not model_http_response.http_status.is_client_error and endpoint.interaction.response.body_json != model_http_response.body_json:
                 verdict = "Unmatched body type"
                 severity = model.Severity.CRITICAL
             elif endpoint.interaction.response.body != "" and endpoint.interaction.response.body != model_http_response.body:
@@ -223,8 +239,11 @@ class Controller:
             if not model_http_response.http_status.is_client_error and match_errors(model_http_response.body):
                 verdict = "Found non-client errors in response"
                 severity = model.Severity.CRITICAL
-            elif endpoint.interaction.response.body_json != model_http_response.body_json:
+            elif not model_http_response.http_status.is_client_error and endpoint.interaction.response.body_json != model_http_response.body_json:
                 verdict = "Unmatched body type"
+                severity = model.Severity.CRITICAL
+            elif model_http_response.http_status.is_server_error:
+                verdict = "Server error in status found"
                 severity = model.Severity.CRITICAL
 
             return model.TestResult(endpoint, severity, verdict,
@@ -256,8 +275,11 @@ class Controller:
             if not model_http_response.http_status.is_client_error and match_errors(model_http_response.body):
                 verdict = "Found non-client errors in response"
                 severity = model.Severity.CRITICAL
-            elif endpoint.interaction.response.body_json != model_http_response.body_json:
+            elif not model_http_response.http_status.is_client_error and endpoint.interaction.response.body_json != model_http_response.body_json:
                 verdict = "Unmatched body type"
+                severity = model.Severity.CRITICAL
+            elif model_http_response.http_status.is_server_error:
+                verdict = "Server error in status found"
                 severity = model.Severity.CRITICAL
 
             return model.TestResult(endpoint, severity, verdict,
