@@ -34,21 +34,23 @@ def match_errors(text: str) -> bool:
     if not hasattr(static, 'errors'):  # fill with fuzzdb/regex/errors.txt
         errors = open("./fuzzdb/regex/errors.txt", "r")
         static.errors = '|'.join(map(lambda s: f"({re.escape(s.strip())})", errors.readlines()))
-    return re.search(static.errors, text) is not None
+    ret = re.search(f"\\b({static.errors})\\b", text)
+    # log(LogLevel.debug, str(ret))
+    return ret is not None
 
 
 def response_convert(response: requests.Response) -> model.HTTPResponse:
-    body_json = False
+    body_type = model.ResponseBodyType.HTML
     try:
         json.loads(response.text)
-        body_json = True
+        body_type = model.ResponseBodyType.JSON
     except Exception:
         pass
     headers = ""
     for k, v in response.headers.items():
         headers += f"{k}: {v}\n"
     
-    return model.HTTPResponse(HTTPStatus(response.status_code), headers, response.text, body_json, response.cookies)
+    return model.HTTPResponse(HTTPStatus(response.status_code), headers, response.text, body_type, response.cookies)
 
 
 class Controller:
@@ -193,7 +195,7 @@ class Controller:
             elif model_http_response.http_status.is_server_error:
                 verdict = "Server error in status found"
                 severity = model.Severity.CRITICAL
-            elif not model_http_response.http_status.is_client_error and endpoint.interaction.response.body_json != model_http_response.body_json:
+            elif not model_http_response.http_status.is_client_error and endpoint.interaction.response.body_type != model_http_response.body_type:
                 verdict = "Unmatched body type"
                 severity = model.Severity.CRITICAL
             elif endpoint.interaction.response.body != "" and endpoint.interaction.response.body != model_http_response.body:
@@ -219,15 +221,21 @@ class Controller:
     def fuzz_test(self, endpoint: model.Endpoint) -> model.TestResult:
         request = deepcopy(endpoint.interaction.request)
 
-        # generating request body
         match request.http_type:
-            case model.HTTPType.POST | model.HTTPType.PUT:
-                request.body = rstr.rstr(string.printable)
             case model.HTTPType.DELETE:
                 return model.TestResult(endpoint, model.Severity.WARNING, "Cannot do fuzz tests for DELETE requests", None)
-            case model.HTTPType.GET:
+
+        # generating request body
+        match request.body_type:
+            case model.RequestBodyType.ORIGIN:
                 for k in endpoint.interaction.request.body.keys():  # should be a dictionary
                     request.body[k] = rstr.rstr(string.printable)
+
+            case model.RequestBodyType.RAW:
+                request.body = rstr.rstr(string.printable)
+            case model.RequestBodyType.JSON:
+                log(LogLevel.warning, "Proper json fuzzing not implemented right now")
+                request.body = rstr.rstr(string.printable)
 
         def handle_response(response: requests.Response):
             model_http_response = response_convert(response)
@@ -239,7 +247,7 @@ class Controller:
             if not model_http_response.http_status.is_client_error and match_errors(model_http_response.body):
                 verdict = "Found non-client errors in response"
                 severity = model.Severity.CRITICAL
-            elif not model_http_response.http_status.is_client_error and endpoint.interaction.response.body_json != model_http_response.body_json:
+            elif not model_http_response.http_status.is_client_error and endpoint.interaction.response.body_type != model_http_response.body_type:
                 verdict = "Unmatched body type"
                 severity = model.Severity.CRITICAL
             elif model_http_response.http_status.is_server_error:
@@ -254,16 +262,21 @@ class Controller:
     def sqlinj_test(self, endpoint: model.Endpoint) -> model.TestResult:
         request = deepcopy(endpoint.interaction.request)
 
-        # generating request body
-        wordlist = endpoint.sqlinj_test.wordlist.get()
         match request.http_type:
-            case model.HTTPType.POST | model.HTTPType.PUT:
-                request.body = wordlist[random.randint(0, len(wordlist) - 1)]
             case model.HTTPType.DELETE:
                 return model.TestResult(endpoint, model.Severity.WARNING, "Cannot do sql injection tests for DELETE requests", None)
-            case model.HTTPType.GET:
-                for k in request.body.keys():  # should be a dictionary
+
+        # generating request body
+        wordlist = endpoint.sqlinj_test.wordlist.get()
+        match request.body_type:
+            case model.RequestBodyType.ORIGIN:
+                for k in endpoint.interaction.request.body.keys():  # should be a dictionary
                     request.body[k] = wordlist[random.randint(0, len(wordlist) - 1)]
+            case model.RequestBodyType.RAW:
+                request.body = wordlist[random.randint(0, len(wordlist) - 1)]
+            case model.RequestBodyType.JSON:
+                log(LogLevel.warning, "Proper json fuzzing not implemented right now")
+                request.body = wordlist[random.randint(0, len(wordlist) - 1)]
 
         def handle_response(response: requests.Response):
             model_http_response = response_convert(response)
@@ -275,7 +288,7 @@ class Controller:
             if not model_http_response.http_status.is_client_error and match_errors(model_http_response.body):
                 verdict = "Found non-client errors in response"
                 severity = model.Severity.CRITICAL
-            elif not model_http_response.http_status.is_client_error and endpoint.interaction.response.body_json != model_http_response.body_json:
+            elif not model_http_response.http_status.is_client_error and endpoint.interaction.response.body_type != model_http_response.body_type:
                 verdict = "Unmatched body type"
                 severity = model.Severity.CRITICAL
             elif model_http_response.http_status.is_server_error:

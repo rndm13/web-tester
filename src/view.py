@@ -130,32 +130,38 @@ class EndpointInput(object):
         if request.http_type == model.HTTPType.DELETE:
             request.body = None
             imgui.text("DELETE requests don't have body")
-        elif request.http_type == model.HTTPType.GET:
-            if type(request.body) is not dict:
-                request.body_json = False
-                request.body = {}
-            cls.dict_input(request.body)
-        else:
-            if type(request.body) is not str:
-                request.body = ""
-            
-            _, request.body_json = imgui.checkbox("JSON", request.body_json)
 
-            language = None
-            if request.body_json:
-                language = TextEditor.LanguageDefinition.json()
+        imgui.text("Type")  # type selection
+        for v in model.RequestBodyType:
+            imgui.same_line()
+            s = imgui.radio_button(str(v), request.body_type == v)
+            if s:
+                request.body_type = v
 
-            imgui.push_id(0)
-            changed, request.body = cls.render_ed(
-                "Request body",
-                request.body,
-                (-1, 250),
-                language)
+        match request.body_type:
+            case model.RequestBodyType.ORIGIN:
+                if type(request.body) is not dict:
+                    request.body = {}
+                cls.dict_input(request.body)
+            case model.RequestBodyType.JSON | model.RequestBodyType.RAW:
+                if type(request.body) is not str:
+                    request.body = ""
 
-            if changed:
-                request.prettify()
+                language = None
+                if request.body_type == model.RequestBodyType.JSON:
+                    language = TextEditor.LanguageDefinition.json()
 
-            imgui.pop_id()
+                imgui.push_id(0)
+                changed, request.body = cls.render_ed(
+                    "Request body",
+                    request.body,
+                    (-1, 250),
+                    language)
+
+                if changed:
+                    request.prettify()
+
+                imgui.pop_id()
 
     @classmethod
     def request_input(cls, request: model.HTTPRequest):
@@ -190,10 +196,15 @@ class EndpointInput(object):
 
         if imgui.begin_tab_bar("Response"):
             if imgui.begin_tab_item("Body")[0]:
-                _, response.body_json = imgui.checkbox("JSON", response.body_json)
+                imgui.text("Type")  # type selection
+                for v in model.ResponseBodyType:
+                    imgui.same_line()
+                    s = imgui.radio_button(str(v), response.body_type == v)
+                    if s:
+                        response.body_type = v
 
                 language = None
-                if response.body_json:
+                if response.body_type == model.ResponseBodyType.JSON:
                     language = TextEditor.LanguageDefinition.json()
 
                 imgui.push_id(0)
@@ -207,7 +218,6 @@ class EndpointInput(object):
                     response.prettify()
 
                 imgui.pop_id()
-
                 imgui.end_tab_item()
 
             if imgui.begin_tab_item("Cookies")[0]:
@@ -228,30 +238,33 @@ class EndpointInput(object):
     @classmethod
     def read_only_request_body(cls, request: model.HTTPRequest):
         if request.http_type == model.HTTPType.DELETE:
-            pass
-        elif request.http_type == model.HTTPType.GET:
-            if type(request.body) is not dict:
-                request.body_json = False
-                request.body = {}
+            request.body = None
+            imgui.text("DELETE requests don't have body")
 
-            cls.read_only_dict(request.body)
-        else:
-            if type(request.body) is not str:
-                request.body = ""
-            
-            imgui.checkbox("JSON", request.body_json)
+        imgui.text(f"Type: {request.body_type.name}")
 
-            language = None
-            if request.body_json:
-                language = TextEditor.LanguageDefinition.json()
+        match request.body_type:
+            case model.RequestBodyType.ORIGIN:
+                if type(request.body) is not dict:
+                    request.body = {}
+                cls.read_only_dict(request.body)
+            case model.RequestBodyType.JSON | model.RequestBodyType.RAW:
+                if type(request.body) is not str:
+                    request.body = ""
 
-            imgui.push_id(0)
-            cls.render_ed(
-                "RO Request body",
-                request.body,
-                (-1, 250),
-                language)
-            imgui.pop_id()
+                language = None
+                match request.body_type:
+                    case model.ResponseBodyType.JSON:
+                        language = TextEditor.LanguageDefinition.json()
+
+                imgui.push_id(0)
+                cls.render_ed(
+                    "RO Request body",
+                    request.body,
+                    (-1, 250),
+                    language)
+
+                imgui.pop_id()
 
     @classmethod
     def read_only_request(cls, request: model.HTTPRequest):
@@ -304,11 +317,12 @@ class EndpointInput(object):
 
             if imgui.begin_tab_bar("Response"):
                 if imgui.begin_tab_item("Body")[0]:
-                    imgui.checkbox("JSON", response.body_json)
+                    imgui.text(f"Type: {response.body_type}")
 
                     language = None
-                    if response.body_json:
-                        language = TextEditor.LanguageDefinition.json()
+                    match response.body_type:
+                        case model.ResponseBodyType.JSON:
+                            language = TextEditor.LanguageDefinition.json()
 
                     imgui.push_id(0)
                     cls.render_ed(
@@ -399,6 +413,7 @@ class EndpointInput(object):
                     if cls.sqlinj_file_open.result() is not None and cls.sqlinj_file_open.result() != []:  # can open multiple files
                         endpoint.sqlinj_test.wordlist = model.Wordlist(cls.sqlinj_file_open.result()[0])
                         cls.sqlinj_file_open = None
+
                 imgui.tree_pop()
 
     @classmethod
@@ -659,6 +674,7 @@ class TestResultsWindow:
   
                 imgui.table_next_column()
                 imgui.push_id(i + 4)
+                imgui.set_next_item_width(-1)
                 imgui.input_text("", str(tr.error), imgui.InputTextFlags_.read_only)
                 imgui.pop_id()
                 i += 5

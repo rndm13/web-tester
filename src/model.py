@@ -21,23 +21,29 @@ class HTTPType(StrEnum):
     DELETE = "DELETE"
 
 
+class RequestBodyType(StrEnum):
+    JSON = "JSON"
+    RAW = "RAW"
+    ORIGIN = "ORIGIN"
+
+
 class HTTPRequest:
-    def __init__(self, http_type: HTTPType, body: Union[str, dict[str, str]] = None, body_json: bool = False, headers: str = "", cookies: dict[str, str] = {}):
+    def __init__(self, http_type: HTTPType, body_type: RequestBodyType = RequestBodyType.ORIGIN, body: Union[str, dict[str, str]] = None, headers: str = "", cookies: dict[str, str] = {}):
         self.http_type = http_type
+        self.body_type = body_type
         self.body = body
         if self.body is None:
-            match self.http_type:
-                case HTTPType.GET:
+            match self.body_type:
+                case RequestBodyType.ORIGIN:
                     self.body = {}
-                case HTTPType.POST | HTTPType.PUT:
+                case RequestBodyType.JSON | RequestBodyType.RAW:
                     self.body = ""
-        self.body_json = body_json
         self.headers = headers
         self.cookies = cookies
         self.prettify()
 
     def validate(self):
-        if self.body_json:
+        if self.body_type == RequestBodyType.JSON:
             try:
                 json.loads(self.body)
             except Exception as ex:
@@ -45,7 +51,7 @@ class HTTPRequest:
         return ""
 
     def prettify(self):
-        if not self.body_json:
+        if self.body_type != RequestBodyType.JSON:
             return
 
         try:
@@ -55,17 +61,23 @@ class HTTPRequest:
             pass
 
 
+class ResponseBodyType(StrEnum):
+    JSON = "JSON"
+    HTML = "HTML"
+    RAW = "RAW"
+
+
 class HTTPResponse:
-    def __init__(self, http_status: HTTPStatus, headers: str = "", body: str = "", body_json: bool = False, cookies: dict[str, str] = {}):
+    def __init__(self, http_status: HTTPStatus, headers: str = "", body: str = "", body_type: ResponseBodyType = ResponseBodyType.JSON, cookies: dict[str, str] = {}):
         self.http_status = http_status
         self.headers = headers
         self.body = body
-        self.body_json = body_json
+        self.body_type = body_type
         self.cookies = cookies
         self.prettify()
         
     def validate(self):
-        if self.body_json and self.body != "":
+        if self.body_type == ResponseBodyType.JSON and self.body != "":
             try:
                 json.loads(self.body)
             except Exception as ex:
@@ -74,7 +86,7 @@ class HTTPResponse:
         return ""
 
     def prettify(self):
-        if not self.body_json:
+        if not self.body_type != ResponseBodyType.JSON:
             return
 
         try:
