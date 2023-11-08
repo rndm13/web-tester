@@ -41,7 +41,7 @@ def match_errors(text: str) -> bool:
 
 def response_convert(response: requests.Response) -> model.HTTPResponse:
     body_type = model.ResponseBodyType.HTML
-    try:
+    try:  # check if body is json perchance
         json.loads(response.text)
         body_type = model.ResponseBodyType.JSON
     except Exception:
@@ -50,7 +50,7 @@ def response_convert(response: requests.Response) -> model.HTTPResponse:
     for k, v in response.headers.items():
         headers += f"{k}: {v}\n"
     
-    return model.HTTPResponse(HTTPStatus(response.status_code), headers, response.text, body_type, response.cookies)
+    return model.HTTPResponse(HTTPStatus(response.status_code), body_type, response.text, headers, response.cookies)
 
 
 class Controller:

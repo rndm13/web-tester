@@ -60,32 +60,34 @@ class EndpointInput(object):
             changed_key_value = ""
 
             for k, v in form.items():
-                imgui.push_id(i + 0)
+                if imgui.table_next_column():
+                    imgui.push_id(i + 0)
 
-                imgui.table_next_column()
-                imgui.set_next_item_width(-1)
-                changed_key, new_key = imgui.input_text("", k)
-                if changed_key:
-                    old_key = k
-                    changed_key_value = v
+                    imgui.set_next_item_width(-1)
+                    changed_key, new_key = imgui.input_text("", k)
+                    if changed_key:
+                        old_key = k
+                        changed_key_value = v
 
-                imgui.pop_id()
-                imgui.push_id(i + 1)
-                
-                imgui.table_next_column()
-                imgui.set_next_item_width(-1)
-                changed, val = imgui.input_text("", v)
-                if changed:
-                    form[k] = val
+                    imgui.pop_id()
 
-                imgui.pop_id()
-                imgui.push_id(i + 2)
+                if imgui.table_next_column():
+                    imgui.push_id(i + 1)
+                    
+                    imgui.set_next_item_width(-1)
+                    changed, val = imgui.input_text("", v)
+                    if changed:
+                        form[k] = val
 
-                imgui.table_next_column()
-                if imgui.button("Delete", (-1, 0)):
-                    to_remove = k
+                    imgui.pop_id()
 
-                imgui.pop_id()
+                if imgui.table_next_column():
+                    imgui.push_id(i + 2)
+
+                    if imgui.button("Delete", (-1, 0)):
+                        to_remove = k
+
+                    imgui.pop_id()
                 i += 3
 
             if to_remove is not None:
@@ -107,20 +109,19 @@ class EndpointInput(object):
             imgui.table_headers_row()
 
             for k, v in form.items():
-                imgui.push_id(i + 0)
+                if imgui.table_next_column():
+                    imgui.push_id(i + 0)
+                    imgui.set_next_item_width(-1)
+                    imgui.input_text("", k, imgui.InputTextFlags_.read_only)
 
-                imgui.table_next_column()
-                imgui.set_next_item_width(-1)
-                imgui.input_text("", k, imgui.InputTextFlags_.read_only)
-
-                imgui.pop_id()
-                imgui.push_id(i + 1)
+                    imgui.pop_id()
                 
-                imgui.table_next_column()
-                imgui.set_next_item_width(-1)
-                imgui.input_text("", v, imgui.InputTextFlags_.read_only)
+                if imgui.table_next_column():
+                    imgui.push_id(i + 1)
+                    imgui.set_next_item_width(-1)
+                    imgui.input_text("", v, imgui.InputTextFlags_.read_only)
 
-                imgui.pop_id()
+                    imgui.pop_id()
                 i += 2
 
             imgui.end_table()
@@ -330,6 +331,7 @@ class EndpointInput(object):
                         response.body,
                         (-1, 250),
                         language)
+
                     imgui.pop_id()
 
                     imgui.end_tab_item()
@@ -586,27 +588,27 @@ class TestInputWindow:
             imgui.table_headers_row()
 
             for ep in self.controller.endpoints():
-                imgui.push_id(i + 0)
-                imgui.table_next_column()
-                imgui.set_next_item_width(-1)
-                imgui.input_text("", ep.url, imgui.InputTextFlags_.read_only)
-                imgui.pop_id()
+                if imgui.table_next_column():
+                    imgui.push_id(i + 0)
+                    imgui.set_next_item_width(-1)
+                    imgui.input_text("", ep.url, imgui.InputTextFlags_.read_only)
+                    imgui.pop_id()
 
-                imgui.table_next_column()
-                imgui.text(ep.http_type())
+                if imgui.table_next_column():
+                    imgui.text(ep.http_type())
                 
-                imgui.table_next_column()
-                imgui.text(ep.test_types())
+                if imgui.table_next_column():
+                    imgui.text(ep.test_types())
                 
-                imgui.table_next_column()
-                imgui.push_id(i + 1)
-                width = imgui.get_column_width()
-                if imgui.button("Edit", (width / 2 - 5, 0)):
-                    self.endpoint_edit = ep
-                imgui.same_line()
-                if imgui.button("Delete", (width / 2 - 5, 0)):
-                    self.controller.remove_endpoint(ep)
-                imgui.pop_id()
+                if imgui.table_next_column():
+                    imgui.push_id(i + 1)
+                    width = imgui.get_column_width()
+                    if imgui.button("Edit", (width / 2 - 5, 0)):
+                        self.endpoint_edit = ep
+                    imgui.same_line()
+                    if imgui.button("Delete", (width / 2 - 5, 0)):
+                        self.controller.remove_endpoint(ep)
+                    imgui.pop_id()
                 i += 2
             imgui.end_table()
 
@@ -634,49 +636,50 @@ class TestResultsWindow:
             imgui.table_headers_row()
 
             for tr in self.controller.test_results():
-                imgui.table_next_column()
+                if imgui.table_next_column():
+                    imgui.push_id(i + 0)
+                    imgui.input_text("", tr.endpoint.url, imgui.InputTextFlags_.read_only)
+                    imgui.pop_id()
 
-                imgui.push_id(i + 0)
-                imgui.input_text("", tr.endpoint.url, imgui.InputTextFlags_.read_only)
-                imgui.pop_id()
-                imgui.same_line()
-                imgui.text(tr.endpoint.http_type())
-                imgui.same_line()
-                
-                imgui.push_id(i + 1)
-                if imgui.button("Edit"):
-                    self.endpoint_edit = tr.endpoint
-                imgui.pop_id()
-                if id(tr.endpoint.interaction.request) != id(tr.diff_request):
-                    imgui.push_id(i + 2)
                     imgui.same_line()
-                    if imgui.button("Request details"):
-                        self.request_details = tr.diff_request
-                    imgui.pop_id()
-                  
-                imgui.table_next_column()
-                imgui.text_colored(tr.color(), str(tr.severity))
-                  
-                imgui.table_next_column()
-                imgui.text(tr.verdict)
-                  
-                imgui.table_next_column()
-                if tr.response is None:
-                    imgui.text("None")
-                else:
-                    imgui.push_id(i + 3)
-                    if imgui.button("Details", (-1, 0)):
-                        self.response_details = tr.response
+                    imgui.text(tr.endpoint.http_type())
+
+                    imgui.same_line()
+                    imgui.push_id(i + 1)
+                    if imgui.button("Edit"):
+                        self.endpoint_edit = tr.endpoint
                     imgui.pop_id()
 
-                imgui.table_next_column()
-                imgui.text(str(tr.elapsed_time))
+                    if id(tr.endpoint.interaction.request) != id(tr.diff_request):
+                        imgui.push_id(i + 2)
+                        imgui.same_line()
+                        if imgui.button("Request details"):
+                            self.request_details = tr.diff_request
+                        imgui.pop_id()
+                      
+                if imgui.table_next_column():
+                    imgui.text_colored(tr.color(), str(tr.severity))
+                  
+                if imgui.table_next_column():
+                    imgui.text(tr.verdict)
+                  
+                if imgui.table_next_column():
+                    if tr.response is None:
+                        imgui.text("None")
+                    else:
+                        imgui.push_id(i + 3)
+                        if imgui.button("Details", (-1, 0)):
+                            self.response_details = tr.response
+                        imgui.pop_id()
+
+                if imgui.table_next_column():
+                    imgui.text(str(tr.elapsed_time))
   
-                imgui.table_next_column()
-                imgui.push_id(i + 4)
-                imgui.set_next_item_width(-1)
-                imgui.input_text("", str(tr.error), imgui.InputTextFlags_.read_only)
-                imgui.pop_id()
+                if imgui.table_next_column():
+                    imgui.push_id(i + 4)
+                    imgui.set_next_item_width(-1)
+                    imgui.input_text("", str(tr.error), imgui.InputTextFlags_.read_only)
+                    imgui.pop_id()
                 i += 5
             imgui.end_table()
 

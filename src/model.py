@@ -42,23 +42,23 @@ class HTTPRequest:
         self.cookies = cookies
         self.prettify()
 
-    def validate(self):
-        if self.body_type == RequestBodyType.JSON:
-            try:
-                json.loads(self.body)
-            except Exception as ex:
-                return str(ex)
+    def validate(self) -> str:
+        match self.body_type:
+            case RequestBodyType.JSON:
+                try:
+                    json.loads(self.body)
+                except Exception as ex:
+                    return f"failed to validate json: {str(ex)}"
         return ""
 
-    def prettify(self):
-        if self.body_type != RequestBodyType.JSON:
-            return
-
+    def prettify(self) -> ():
         try:
-            json_data = json.loads(self.body)
-            self.body = json.dumps(json_data, indent=4)
-        except Exception:
-            pass
+            match self.body_type:
+                case RequestBodyType.JSON:
+                    json_data = json.loads(self.body)
+                    self.body = json.dumps(json_data, indent=4)
+        except Exception as e:
+            log(LogLevel.warning, f"Failed to prettify json: {str(e)}")
 
 
 class ResponseBodyType(StrEnum):
@@ -68,32 +68,32 @@ class ResponseBodyType(StrEnum):
 
 
 class HTTPResponse:
-    def __init__(self, http_status: HTTPStatus, headers: str = "", body: str = "", body_type: ResponseBodyType = ResponseBodyType.JSON, cookies: dict[str, str] = {}):
+    def __init__(self, http_status: HTTPStatus, body_type: ResponseBodyType = ResponseBodyType.JSON, body: Union[str, dict[str, str]] = "", headers: str = "", cookies: dict[str, str] = {}):
         self.http_status = http_status
-        self.headers = headers
-        self.body = body
         self.body_type = body_type
+        self.body = body
+        self.headers = headers
         self.cookies = cookies
         self.prettify()
         
-    def validate(self):
-        if self.body_type == ResponseBodyType.JSON and self.body != "":
-            try:
-                json.loads(self.body)
-            except Exception as ex:
-                return str(ex)
+    def validate(self) -> str:
+        match self.body_type:
+            case ResponseBodyType.JSON:
+                try:
+                    json.loads(self.body)
+                except Exception as ex:
+                    return f"failed to validate json: {str(ex)}"
 
         return ""
 
-    def prettify(self):
-        if not self.body_type != ResponseBodyType.JSON:
-            return
-
+    def prettify(self) -> ():
         try:
-            json_data = json.loads(self.body)
-            self.body = json.dumps(json_data, indent=4)
-        except Exception:
-            pass
+            match self.body_type:
+                case ResponseBodyType.JSON:
+                    json_data = json.loads(self.body)
+                    self.body = json.dumps(json_data, indent=4)
+        except Exception as e:
+            log(LogLevel.warning, f"Failed to prettify json: {str(e)}")
 
 
 class Interaction:
