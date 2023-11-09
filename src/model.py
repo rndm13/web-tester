@@ -112,9 +112,6 @@ class Interaction:
             return ret
         return ""
 
-    def http_type(self) -> HTTPType:
-        return self.request.http_type.value
-
 
 class Wordlist:
     wordlists = {}  # NOTE: doesn't get saved in files

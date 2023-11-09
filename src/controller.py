@@ -66,7 +66,6 @@ class Controller:
 
         self.in_progress = False
         self.progress = None
-        self.testing_thread = None
 
     def add_endpoint(self, endpoint: model.Endpoint):
         self.model.add_endpoint(endpoint)
@@ -332,8 +331,8 @@ class Controller:
         self.in_progress = False
         self.filter_results()
 
-    def start_basic_testing(self):
-        self.testing_thread = self.thread_pool.submit(Controller.run_tests, self)
+    def start_testing(self):
+        self.thread_pool.submit(Controller.run_tests, self)
 
     def cancel_testing(self):
         if not self.in_progress:

@@ -10,7 +10,7 @@ log = hello_imgui.log
 LogLevel = hello_imgui.LogLevel
 
 
-class EndpointInput(object):
+class EndpointInput:
     editors = {}
     validation = ""
 
@@ -572,7 +572,7 @@ class TestInputWindow:
         if self.controller.model.endpoints != []:
             if not self.controller.in_progress:
                 if imgui.button("Test", (50, 30)):
-                    self.controller.start_basic_testing()
+                    self.controller.start_testing()
             else:
                 if imgui.button("Cancel", (50, 30)):
                     self.controller.cancel_testing()
@@ -694,7 +694,7 @@ class TestResultsWindow:
         if self.controller.model.endpoints != []:
             if not self.controller.in_progress:
                 if imgui.button("Test", (50, 30)):
-                    self.controller.start_basic_testing()
+                    self.controller.start_testing()
             else:
                 if imgui.button("Cancel", (50, 30)):
                     self.controller.cancel_testing()
@@ -709,7 +709,7 @@ class TestResultsWindow:
                 self.result_filter.gui()
 
                 if imgui.button("Filter", (100, 30)):
-                    self.controller.set_result_filter(copy.deepcopy(self.result_filter.filt()))
+                    self.controller.set_result_filter(copy.deepcopy(self.result_filter.filt))
                 imgui.same_line()
                 if imgui.button("Cancel", (100, 30)):
                     self.result_filter = None
@@ -775,10 +775,6 @@ class View:
             if self.file_export.result() is not None and self.file_export.result() != "":
                 self.controller.export(self.file_export.result())
                 self.file_export = None
-
-    def app_menu(self):
-        imgui.text("Hello!\nI should probably add about here or something...")
-        pass
 
     def run(self):
         runner_params = hello_imgui.RunnerParams()
