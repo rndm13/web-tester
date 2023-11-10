@@ -77,6 +77,9 @@ class HTTPResponse:
         self.prettify()
         
     def validate(self) -> str:
+        if self.body == "" or self.body == {}:
+            return ""  # nothing to validate
+
         match self.body_type:
             case ResponseBodyType.JSON:
                 try:
@@ -123,6 +126,7 @@ class Wordlist:
         if self.filename not in Wordlist.wordlists:
             file = open(self.filename, "r")
             Wordlist.wordlists[self.filename] = list(map(lambda s: s.strip(), file.readlines()))
+            file.close()
         return Wordlist.wordlists[self.filename]
 
     @classmethod

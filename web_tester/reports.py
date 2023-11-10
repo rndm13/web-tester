@@ -1,4 +1,4 @@
-import model
+from . import model
 from docx import Document
 # from docx.shared import Cm
 from typing import List

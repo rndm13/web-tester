@@ -1,7 +1,7 @@
 import copy
 
-from controller import Controller
-import model
+from .controller import Controller
+from . import model
 from http import HTTPStatus
 
 from imgui_bundle import imgui, hello_imgui, imgui_color_text_edit as ed, portable_file_dialogs as pfd

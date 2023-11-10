@@ -13,8 +13,8 @@ import json
 import requests
 from http import HTTPStatus
 
-import model
-import reports
+from . import model
+from . import reports
 
 from imgui_bundle import hello_imgui
 log = hello_imgui.log
@@ -25,15 +25,16 @@ def str_to_dict(text: str) -> dict[str, str]:
     to_ret = {}
     for line in text.splitlines(False):
         if (ind := line.find(':')) >= 0:
-            to_ret[line[:ind]] = line[ind + 2:]  # skip over semicolon and space
+            to_ret[line[:ind]] = line[ind + 1:].strip()  # skip over semicolon
     return to_ret
 
 
 def match_errors(text: str) -> bool:
     static = match_errors
     if not hasattr(static, 'errors'):  # fill with fuzzdb/regex/errors.txt
-        errors = open("./fuzzdb/regex/errors.txt", "r")
-        static.errors = '|'.join(map(lambda s: f"({re.escape(s.strip())})", errors.readlines()))
+        file = open("./fuzzdb/regex/errors.txt", "r")
+        static.errors = '|'.join(map(lambda s: f"({re.escape(s.strip())})", file.readlines()))
+        file.close()
     ret = re.search(f"\\b({static.errors})\\b", text)
     # log(LogLevel.debug, str(ret))
     return ret is not None
