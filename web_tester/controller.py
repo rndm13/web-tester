@@ -172,7 +172,7 @@ class Controller:
                                     None, error=error, diff_request=diff_request)
         except Exception as error:
             log(LogLevel.error, f"Unknown error for {endpoint.url} {endpoint.http_type()}")
-            return model.TestResult(endpoint, model.Severity.DANGER, "Unknown error",
+            return model.TestResult(endpoint, model.Severity.WARNING, "Unknown error",
                                     None, error=error, diff_request=diff_request)
 
     def match_test(self, endpoint: model.Endpoint) -> model.TestResult:

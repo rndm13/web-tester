@@ -10,9 +10,8 @@ log = hello_imgui.log
 LogLevel = hello_imgui.LogLevel
 
 
-class EndpointInput:
+class Editors:
     editors = {}
-    validation = ""
 
     @classmethod
     def get_editor(cls, label: str) -> TextEditor:
@@ -37,147 +36,256 @@ class EndpointInput:
         imgui.set_cursor_pos_y(imgui.get_cursor_pos_y() + 4)
         return editor.is_text_changed(), editor.get_text()
 
-    @classmethod
-    def dict_input(cls, form: dict[str, str]):
-        if imgui.button("Add"):
-            i = 1
-            while f"key_{i}" in form:
-                i += 1
-            form[f"key_{i}"] = "value"
 
-        i = 0  # For button ids
-        to_remove = None  # on delete button click
-        if imgui.begin_table("Cookies", 3, View.table_flags, (0, 250)):
-            imgui.table_setup_scroll_freeze(0, 1)
-            imgui.table_setup_column("Key", imgui.TableColumnFlags_.none)
-            imgui.table_setup_column("Value", imgui.TableColumnFlags_.none)
-            imgui.table_setup_column("Actions", imgui.TableColumnFlags_.none)
-            imgui.table_headers_row()
-            
-            changed_key = False
-            old_key = ""
-            new_key = ""
-            changed_key_value = ""
+def dict_input(form: dict[str, str]):
+    if imgui.button("Add"):
+        i = 1
+        while f"key_{i}" in form:
+            i += 1
+        form[f"key_{i}"] = "value"
 
-            for k, v in form.items():
-                if imgui.table_next_column():
-                    imgui.push_id(i + 0)
+    i = 0  # For button ids
+    to_remove = None  # on delete button click
+    if imgui.begin_table("Cookies", 3, View.table_flags, (0, 250)):
+        imgui.table_setup_scroll_freeze(0, 1)
+        imgui.table_setup_column("Key", imgui.TableColumnFlags_.none)
+        imgui.table_setup_column("Value", imgui.TableColumnFlags_.none)
+        imgui.table_setup_column("Actions", imgui.TableColumnFlags_.none)
+        imgui.table_headers_row()
+        
+        changed_key = False
+        old_key = ""
+        new_key = ""
+        changed_key_value = ""
 
-                    imgui.set_next_item_width(-1)
-                    changed_key, new_key = imgui.input_text("", k)
-                    if changed_key:
-                        old_key = k
-                        changed_key_value = v
+        for k, v in form.items():
+            if imgui.table_next_column():
+                imgui.push_id(i + 0)
 
-                    imgui.pop_id()
-
-                if imgui.table_next_column():
-                    imgui.push_id(i + 1)
-                    
-                    imgui.set_next_item_width(-1)
-                    changed, val = imgui.input_text("", v)
-                    if changed:
-                        form[k] = val
-
-                    imgui.pop_id()
-
-                if imgui.table_next_column():
-                    imgui.push_id(i + 2)
-
-                    if imgui.button("Delete", (-1, 0)):
-                        to_remove = k
-
-                    imgui.pop_id()
-                i += 3
-
-            if to_remove is not None:
-                form.pop(to_remove)
-
-            if changed_key:
-                form.pop(old_key)
-                form[new_key] = changed_key_value
-
-            imgui.end_table()
-
-    @classmethod
-    def read_only_dict(cls, form: dict[str, str]):
-        i = 0  # For button ids
-        if imgui.begin_table("Cookies", 2, View.table_flags, (0, 250)):
-            imgui.table_setup_scroll_freeze(0, 1)
-            imgui.table_setup_column("Key", imgui.TableColumnFlags_.none)
-            imgui.table_setup_column("Value", imgui.TableColumnFlags_.none)
-            imgui.table_headers_row()
-
-            for k, v in form.items():
-                if imgui.table_next_column():
-                    imgui.push_id(i + 0)
-                    imgui.set_next_item_width(-1)
-                    imgui.input_text("", k, imgui.InputTextFlags_.read_only)
-
-                    imgui.pop_id()
-                
-                if imgui.table_next_column():
-                    imgui.push_id(i + 1)
-                    imgui.set_next_item_width(-1)
-                    imgui.input_text("", v, imgui.InputTextFlags_.read_only)
-
-                    imgui.pop_id()
-                i += 2
-
-            imgui.end_table()
-
-    @classmethod
-    def request_body_input(cls, request: model.HTTPRequest):
-        if request.http_type == model.HTTPType.DELETE:
-            request.body = None
-            imgui.text("DELETE requests don't have body")
-
-        imgui.text("Type")  # type selection
-        for v in model.RequestBodyType:
-            imgui.same_line()
-            s = imgui.radio_button(str(v), request.body_type == v)
-            if s:
-                request.body_type = v
-
-        match request.body_type:
-            case model.RequestBodyType.ORIGIN:
-                if type(request.body) is not dict:
-                    request.body = {}
-                cls.dict_input(request.body)
-            case model.RequestBodyType.JSON | model.RequestBodyType.RAW:
-                if type(request.body) is not str:
-                    request.body = ""
-
-                language = None
-                if request.body_type == model.RequestBodyType.JSON:
-                    language = TextEditor.LanguageDefinition.json()
-
-                imgui.push_id(0)
-                changed, request.body = cls.render_ed(
-                    "Request body",
-                    request.body,
-                    (-1, 250),
-                    language)
-
-                if changed:
-                    request.prettify()
+                imgui.set_next_item_width(-1)
+                changed_key, new_key = imgui.input_text("", k)
+                if changed_key:
+                    old_key = k
+                    changed_key_value = v
 
                 imgui.pop_id()
 
-    @classmethod
-    def request_input(cls, request: model.HTTPRequest):
+            if imgui.table_next_column():
+                imgui.push_id(i + 1)
+                
+                imgui.set_next_item_width(-1)
+                changed, val = imgui.input_text("", v)
+                if changed:
+                    form[k] = val
+
+                imgui.pop_id()
+
+            if imgui.table_next_column():
+                imgui.push_id(i + 2)
+
+                if imgui.button("Delete", (-1, 0)):
+                    to_remove = k
+
+                imgui.pop_id()
+            i += 3
+
+        if to_remove is not None:
+            form.pop(to_remove)
+
+        if changed_key:
+            form.pop(old_key)
+            form[new_key] = changed_key_value
+
+        imgui.end_table()
+
+
+def read_only_dict(form: dict[str, str]):
+    i = 0  # For button ids
+    if imgui.begin_table("Cookies", 2, View.table_flags, (0, 250)):
+        imgui.table_setup_scroll_freeze(0, 1)
+        imgui.table_setup_column("Key", imgui.TableColumnFlags_.none)
+        imgui.table_setup_column("Value", imgui.TableColumnFlags_.none)
+        imgui.table_headers_row()
+
+        for k, v in form.items():
+            if imgui.table_next_column():
+                imgui.push_id(i + 0)
+                imgui.set_next_item_width(-1)
+                imgui.input_text("", k, imgui.InputTextFlags_.read_only)
+
+                imgui.pop_id()
+            
+            if imgui.table_next_column():
+                imgui.push_id(i + 1)
+                imgui.set_next_item_width(-1)
+                imgui.input_text("", v, imgui.InputTextFlags_.read_only)
+
+                imgui.pop_id()
+            i += 2
+
+        imgui.end_table()
+
+
+def request_body_input(request: model.HTTPRequest):
+    if request.http_type == model.HTTPType.DELETE:
+        request.body = None
+        imgui.text("DELETE requests don't have body")
+
+    imgui.text("Type")  # type selection
+    for v in model.RequestBodyType:
+        imgui.same_line()
+        s = imgui.radio_button(str(v), request.body_type == v)
+        if s:
+            request.body_type = v
+
+    match request.body_type:
+        case model.RequestBodyType.ORIGIN:
+            if type(request.body) is not dict:
+                request.body = {}
+            dict_input(request.body)
+        case model.RequestBodyType.JSON | model.RequestBodyType.RAW:
+            if type(request.body) is not str:
+                request.body = ""
+
+            language = None
+            if request.body_type == model.RequestBodyType.JSON:
+                language = TextEditor.LanguageDefinition.json()
+
+            imgui.push_id(0)
+            changed, request.body = Editors.render_ed(
+                "Request body",
+                request.body,
+                (-1, 250),
+                language)
+
+            if changed:
+                request.prettify()
+
+            imgui.pop_id()
+
+def request_input(request: model.HTTPRequest):
+    if imgui.begin_tab_bar("Request"):
+        if imgui.begin_tab_item("Body")[0]:
+            request_body_input(request)
+            imgui.end_tab_item()
+        if imgui.begin_tab_item("Cookies")[0]:
+            dict_input(request.cookies)
+            imgui.end_tab_item()
+
+        if imgui.begin_tab_item("Headers")[0]:
+            imgui.push_id(1)
+            _, request.headers = Editors.render_ed(
+                    "Request headers",
+                    request.headers,
+                    (-1, 250))
+            imgui.pop_id()
+            imgui.end_tab_item()
+
+        imgui.end_tab_bar()
+
+def response_input(response: model.HTTPResponse):
+    cur_resp = list(HTTPStatus).index(response.http_status)
+    changed, cur_resp = imgui.combo(
+            label="Expected response",
+            current_item=cur_resp,
+            items=list(map(lambda x: f"{x.value} | {x.phrase}", HTTPStatus)))
+    if changed:
+        response.http_status = list(HTTPStatus)[cur_resp]
+
+    if imgui.begin_tab_bar("Response"):
+        if imgui.begin_tab_item("Body")[0]:
+            imgui.text("Type")  # type selection
+            for v in model.ResponseBodyType:
+                imgui.same_line()
+                s = imgui.radio_button(str(v), response.body_type == v)
+                if s:
+                    response.body_type = v
+
+            language = None
+            if response.body_type == model.ResponseBodyType.JSON:
+                language = TextEditor.LanguageDefinition.json()
+
+            imgui.push_id(0)
+            changed, response.body = Editors.render_ed(
+                "Response body",
+                response.body,
+                (-1, 250),
+                language)
+
+            if changed:
+                response.prettify()
+
+            imgui.pop_id()
+            imgui.end_tab_item()
+
+        if imgui.begin_tab_item("Cookies")[0]:
+            dict_input(response.cookies)
+            imgui.end_tab_item()
+
+        if imgui.begin_tab_item("Headers")[0]:
+            imgui.push_id(1)
+            _, response.headers = Editors.render_ed(
+                    "Response headers",
+                    response.headers,
+                    (-1, 250))
+            imgui.pop_id()
+            imgui.end_tab_item()
+
+        imgui.end_tab_bar()
+
+def read_only_request_body(request: model.HTTPRequest):
+    if request.http_type == model.HTTPType.DELETE:
+        request.body = None
+        imgui.text("DELETE requests don't have body")
+
+    imgui.text(f"Type: {request.body_type.name}")
+
+    match request.body_type:
+        case model.RequestBodyType.ORIGIN:
+            if type(request.body) is not dict:
+                request.body = {}
+            read_only_dict(request.body)
+        case model.RequestBodyType.JSON | model.RequestBodyType.RAW:
+            if type(request.body) is not str:
+                request.body = ""
+
+            language = None
+            match request.body_type:
+                case model.ResponseBodyType.JSON:
+                    language = TextEditor.LanguageDefinition.json()
+
+            imgui.push_id(0)
+            Editors.render_ed(
+                "RO Request body",
+                request.body,
+                (-1, 250),
+                language)
+
+            imgui.pop_id()
+
+
+def read_only_request(request: model.HTTPRequest):
+    if request is None:
+        return False
+
+    ret = False
+
+    if not imgui.is_popup_open("Request"):
+        imgui.open_popup("Request")
+    if imgui.begin_popup_modal("Request"):
         if imgui.begin_tab_bar("Request"):
             if imgui.begin_tab_item("Body")[0]:
-                cls.request_body_input(request)
+                read_only_request_body(request)
                 imgui.end_tab_item()
+
             if imgui.begin_tab_item("Cookies")[0]:
-                cls.dict_input(request.cookies)
+                read_only_dict(request.cookies)
                 imgui.end_tab_item()
 
             if imgui.begin_tab_item("Headers")[0]:
                 imgui.push_id(1)
-                _, request.headers = cls.render_ed(
-                        "Request headers",
+                Editors.render_ed(
+                        "RO Request headers",
                         request.headers,
                         (-1, 250))
                 imgui.pop_id()
@@ -185,50 +293,52 @@ class EndpointInput:
 
             imgui.end_tab_bar()
 
-    @classmethod
-    def response_input(cls, response: model.HTTPResponse):
-        cur_resp = list(HTTPStatus).index(response.http_status)
-        changed, cur_resp = imgui.combo(
-                label="Expected response",
-                current_item=cur_resp,
-                items=list(map(lambda x: f"{x.value} | {x.phrase}", HTTPStatus)))
-        if changed:
-            response.http_status = list(HTTPStatus)[cur_resp]
+            if imgui.button("Close"):
+                ret = True
+
+        imgui.end_popup()
+    
+    return ret
+
+def read_only_response(response: model.HTTPResponse) -> bool:
+    if response is None:
+        return False
+
+    ret = False
+
+    if not imgui.is_popup_open("Response"):
+        imgui.open_popup("Response")
+    if imgui.begin_popup_modal("Response"):
+        imgui.text(f"HTTP Status: {response.http_status.value} | {response.http_status.phrase}")
 
         if imgui.begin_tab_bar("Response"):
             if imgui.begin_tab_item("Body")[0]:
-                imgui.text("Type")  # type selection
-                for v in model.ResponseBodyType:
-                    imgui.same_line()
-                    s = imgui.radio_button(str(v), response.body_type == v)
-                    if s:
-                        response.body_type = v
+                imgui.text(f"Type: {response.body_type}")
 
                 language = None
-                if response.body_type == model.ResponseBodyType.JSON:
-                    language = TextEditor.LanguageDefinition.json()
+                match response.body_type:
+                    case model.ResponseBodyType.JSON:
+                        language = TextEditor.LanguageDefinition.json()
 
                 imgui.push_id(0)
-                changed, response.body = cls.render_ed(
-                    "Response body",
+                Editors.render_ed(
+                    "RO Response body",
                     response.body,
                     (-1, 250),
                     language)
 
-                if changed:
-                    response.prettify()
-
                 imgui.pop_id()
+
                 imgui.end_tab_item()
 
             if imgui.begin_tab_item("Cookies")[0]:
-                cls.dict_input(response.cookies)
+                read_only_dict(response.cookies)
                 imgui.end_tab_item()
 
             if imgui.begin_tab_item("Headers")[0]:
                 imgui.push_id(1)
-                _, response.headers = cls.render_ed(
-                        "Response headers",
+                Editors.render_ed(
+                        "RO Response headers",
                         response.headers,
                         (-1, 250))
                 imgui.pop_id()
@@ -236,244 +346,135 @@ class EndpointInput:
 
             imgui.end_tab_bar()
 
-    @classmethod
-    def read_only_request_body(cls, request: model.HTTPRequest):
-        if request.http_type == model.HTTPType.DELETE:
-            request.body = None
-            imgui.text("DELETE requests don't have body")
+            if imgui.button("Close"):
+                ret = True
 
-        imgui.text(f"Type: {request.body_type.name}")
+        imgui.end_popup()
+    
+    return ret
 
-        match request.body_type:
-            case model.RequestBodyType.ORIGIN:
-                if type(request.body) is not dict:
-                    request.body = {}
-                cls.read_only_dict(request.body)
-            case model.RequestBodyType.JSON | model.RequestBodyType.RAW:
-                if type(request.body) is not str:
-                    request.body = ""
 
-                language = None
-                match request.body_type:
-                    case model.ResponseBodyType.JSON:
-                        language = TextEditor.LanguageDefinition.json()
+def fuzz_test(endpoint: model.Endpoint):
+    if endpoint.interaction.request.http_type == model.HTTPType.DELETE:
+        endpoint.fuzz_test = None
+        return
 
-                imgui.push_id(0)
-                cls.render_ed(
-                    "RO Request body",
-                    request.body,
-                    (-1, 250),
-                    language)
-
-                imgui.pop_id()
-
-    @classmethod
-    def read_only_request(cls, request: model.HTTPRequest):
-        if request is None:
-            return False
-
-        ret = False
-
-        if not imgui.is_popup_open("Request"):
-            imgui.open_popup("Request")
-        if imgui.begin_popup_modal("Request"):
-            if imgui.begin_tab_bar("Request"):
-                if imgui.begin_tab_item("Body")[0]:
-                    cls.read_only_request_body(request)
-                    imgui.end_tab_item()
-
-                if imgui.begin_tab_item("Cookies")[0]:
-                    cls.read_only_dict(request.cookies)
-                    imgui.end_tab_item()
-
-                if imgui.begin_tab_item("Headers")[0]:
-                    imgui.push_id(1)
-                    cls.render_ed(
-                            "RO Request headers",
-                            request.headers,
-                            (-1, 250))
-                    imgui.pop_id()
-                    imgui.end_tab_item()
-
-                imgui.end_tab_bar()
-
-                if imgui.button("Close"):
-                    ret = True
-
-            imgui.end_popup()
-        
-        return ret
-
-    @classmethod
-    def read_only_response(cls, response: model.HTTPResponse) -> bool:
-        if response is None:
-            return False
-
-        ret = False
-
-        if not imgui.is_popup_open("Response"):
-            imgui.open_popup("Response")
-        if imgui.begin_popup_modal("Response"):
-            imgui.text(f"HTTP Status: {response.http_status.value} | {response.http_status.phrase}")
-
-            if imgui.begin_tab_bar("Response"):
-                if imgui.begin_tab_item("Body")[0]:
-                    imgui.text(f"Type: {response.body_type}")
-
-                    language = None
-                    match response.body_type:
-                        case model.ResponseBodyType.JSON:
-                            language = TextEditor.LanguageDefinition.json()
-
-                    imgui.push_id(0)
-                    cls.render_ed(
-                        "RO Response body",
-                        response.body,
-                        (-1, 250),
-                        language)
-
-                    imgui.pop_id()
-
-                    imgui.end_tab_item()
-
-                if imgui.begin_tab_item("Cookies")[0]:
-                    cls.read_only_dict(response.cookies)
-                    imgui.end_tab_item()
-
-                if imgui.begin_tab_item("Headers")[0]:
-                    imgui.push_id(1)
-                    cls.render_ed(
-                            "RO Response headers",
-                            response.headers,
-                            (-1, 250))
-                    imgui.pop_id()
-                    imgui.end_tab_item()
-
-                imgui.end_tab_bar()
-
-                if imgui.button("Close"):
-                    ret = True
-
-            imgui.end_popup()
-        
-        return ret
-
-    @classmethod
-    def fuzz_test(cls, endpoint: model.Endpoint):
-        if endpoint.interaction.request.http_type == model.HTTPType.DELETE:
-            endpoint.fuzz_test = None
-            return
-
-        changed, fuzz_test = imgui.checkbox("Fuzz tests", endpoint.fuzz_test is not None)
-        if changed:
-            if fuzz_test:
-                endpoint.fuzz_test = model.FuzzTest()
-            else:
-                endpoint.fuzz_test = None
+    changed, fuzz_test = imgui.checkbox("Fuzz tests", endpoint.fuzz_test is not None)
+    if changed:
         if fuzz_test:
-            imgui.same_line()
-            if imgui.tree_node("Details"):
-                imgui.push_id(0)
-                changed, endpoint.fuzz_test.count = imgui.input_int("Test count", endpoint.fuzz_test.count)
-                if changed:
-                    endpoint.fuzz_test.count = max(1, endpoint.fuzz_test.count)
-                imgui.pop_id()
-                imgui.tree_pop()
-
-    sqlinj_file_open = None
-
-    @classmethod
-    def sqlinj_test(cls, endpoint: model.Endpoint):
-        if endpoint.interaction.request.http_type == model.HTTPType.DELETE:
-            endpoint.sqlinj_test = None
-            return
-
-        changed, sqlinj_test = imgui.checkbox("SQL injection tests", endpoint.sqlinj_test is not None)
-        if changed:
-            if sqlinj_test:
-                endpoint.sqlinj_test = model.SQLInjectionTest()
-            else:
-                endpoint.sqlinj_test = None
-        if sqlinj_test:
-            imgui.same_line()
-            if imgui.tree_node("Details"):
-                imgui.push_id(0)
-                changed, endpoint.sqlinj_test.count = imgui.input_int("Test count", endpoint.sqlinj_test.count)
-                if changed:
-                    endpoint.sqlinj_test.count = max(1, endpoint.sqlinj_test.count)
-                imgui.pop_id()
-
-                imgui.push_id(1)
-                imgui.input_text("Wordlist file", endpoint.sqlinj_test.wordlist.filename, imgui.InputTextFlags_.read_only)
-                imgui.pop_id()
-
-                imgui.same_line()
-                if imgui.button("Open different"):
-                    cls.sqlinj_file_open = pfd.open_file("Open a wordlist", "./fuzzdb/", ["*"])
-
-                if cls.sqlinj_file_open is not None and cls.sqlinj_file_open.ready():
-                    if cls.sqlinj_file_open.result() is not None and cls.sqlinj_file_open.result() != []:  # can open multiple files
-                        endpoint.sqlinj_test.wordlist = model.Wordlist(cls.sqlinj_file_open.result()[0])
-                        cls.sqlinj_file_open = None
-
-                imgui.tree_pop()
-
-    @classmethod
-    def vulnerabilities(cls, endpoint: model.Endpoint):
-        _, endpoint.match_test = imgui.checkbox("Basic input/output match test", endpoint.match_test)
-        imgui.push_id("fuzz_test")
-        cls.fuzz_test(endpoint)
-        imgui.pop_id()
-        imgui.push_id("sqlinj_test")
-        cls.sqlinj_test(endpoint)
-        imgui.pop_id()
-
-    @classmethod
-    def edit(cls, endpoint: model.Endpoint, label: str) -> bool:
-        if endpoint is None:
-            return False
-
-        request = endpoint.interaction.request
-        response = endpoint.interaction.response
-
-        ret = False
-
-        if not imgui.is_popup_open(label):
-            imgui.open_popup(label)
-        if imgui.begin_popup_modal(label):
-            changed, endpoint.url = imgui.input_text("URL", endpoint.url)
-            
-            imgui.text("HTTP Types")
-            for v in model.HTTPType:
-                imgui.same_line()
-                s = imgui.radio_button(str(v), request.http_type == v)
-                if s:
-                    request.http_type = v
-
-            if imgui.tree_node("Request"):
-                cls.request_input(request)
-                imgui.tree_pop()
-
-            if imgui.tree_node("Expected Response"):
-                cls.response_input(response)
-                imgui.tree_pop()
-
-            cls.vulnerabilities(endpoint)
-
-            changed, endpoint.max_wait_time = imgui.input_int("Max wait time (seconds)", endpoint.max_wait_time)
+            endpoint.fuzz_test = model.FuzzTest()
+        else:
+            endpoint.fuzz_test = None
+    if fuzz_test:
+        imgui.same_line()
+        if imgui.tree_node("Details"):
+            imgui.push_id(0)
+            changed, endpoint.fuzz_test.count = imgui.input_int("Test count", endpoint.fuzz_test.count)
             if changed:
-                endpoint.max_wait_time = max(1, endpoint.max_wait_time)
-            
-            if imgui.button("Save", (50, 30)):
-                EndpointInput.validation = endpoint.validate()
-                if EndpointInput.validation == "":
-                    ret = True
+                endpoint.fuzz_test.count = max(1, endpoint.fuzz_test.count)
+            imgui.pop_id()
+            imgui.tree_pop()
 
-            if EndpointInput.validation != "":
-                imgui.text_colored(imgui.ImVec4(255, 0, 0, 255), f"Failed to validate input:\n{EndpointInput.validation}")
-            imgui.end_popup()
 
-        return ret
+def sqlinj_test(endpoint: model.Endpoint) -> ():
+    static = sqlinj_test
+    if not hasattr(static, "sqlinj_file_open"):
+        static.sqlinj_file_open = None
+
+    if endpoint.interaction.request.http_type == model.HTTPType.DELETE:
+        endpoint.sqlinj_test = None
+        return
+
+    changed, test = imgui.checkbox("SQL injection tests", endpoint.sqlinj_test is not None)
+    if changed:
+        if test:
+            endpoint.sqlinj_test = model.SQLInjectionTest()
+        else:
+            endpoint.sqlinj_test = None
+    if test:
+        imgui.same_line()
+        if imgui.tree_node("Details"):
+            imgui.push_id(0)
+            changed, endpoint.sqlinj_test.count = imgui.input_int("Test count", endpoint.sqlinj_test.count)
+            if changed:
+                endpoint.sqlinj_test.count = max(1, endpoint.sqlinj_test.count)
+            imgui.pop_id()
+
+            imgui.push_id(1)
+            imgui.input_text("Wordlist file", endpoint.sqlinj_test.wordlist.filename, imgui.InputTextFlags_.read_only)
+            imgui.pop_id()
+
+            imgui.same_line()
+            if imgui.button("Open different"):
+                static.sqlinj_file_open = pfd.open_file("Open a wordlist", "./fuzzdb/", ["*"])
+
+            if static.sqlinj_file_open is not None and static.sqlinj_file_open.ready():
+                if static.sqlinj_file_open.result() is not None and static.sqlinj_file_open.result() != []:  # can open multiple files
+                    endpoint.sqlinj_test.wordlist = model.Wordlist(static.sqlinj_file_open.result()[0])
+                    static.sqlinj_file_open = None
+
+            imgui.tree_pop()
+
+
+def endpoint_vulnerabilities_input(endpoint: model.Endpoint):
+    _, endpoint.match_test = imgui.checkbox("Basic input/output match test", endpoint.match_test)
+    imgui.push_id("fuzz_test")
+    fuzz_test(endpoint)
+    imgui.pop_id()
+    imgui.push_id("sqlinj_test")
+    sqlinj_test(endpoint)
+    imgui.pop_id()
+
+
+def edit_endpoint(endpoint: model.Endpoint, label: str) -> bool:
+    static = edit_endpoint
+    if not hasattr(static, "validation"):
+        static.validation = ""
+
+    if endpoint is None:
+        return False
+
+    request = endpoint.interaction.request
+    response = endpoint.interaction.response
+
+    ret = False
+
+    if not imgui.is_popup_open(label):
+        imgui.open_popup(label)
+    if imgui.begin_popup_modal(label):
+        changed, endpoint.url = imgui.input_text("URL", endpoint.url)
+        
+        imgui.text("HTTP Types")
+        for v in model.HTTPType:
+            imgui.same_line()
+            s = imgui.radio_button(str(v), request.http_type == v)
+            if s:
+                request.http_type = v
+
+        if imgui.tree_node("Request"):
+            request_input(request)
+            imgui.tree_pop()
+
+        if imgui.tree_node("Expected Response"):
+            response_input(response)
+            imgui.tree_pop()
+
+        endpoint_vulnerabilities_input(endpoint)
+
+        changed, endpoint.max_wait_time = imgui.input_int("Max wait time (seconds)", endpoint.max_wait_time)
+        if changed:
+            endpoint.max_wait_time = max(1, endpoint.max_wait_time)
+        
+        if imgui.button("Save", (50, 30)):
+            static.validation = endpoint.validate()
+            if static.validation == "":
+                ret = True
+
+        if static.validation != "":
+            imgui.text_colored(imgui.ImVec4(255, 0, 0, 255), f"Failed to validate input:\n{static.validation}")
+        imgui.end_popup()
+
+    return ret
 
 
 class EndpointFilterInput:
@@ -542,7 +543,7 @@ class TestInputWindow:
         if imgui.button("Add Test", (0, 30)):
             self.endpoint_add = model.example_endpoint()
             
-        if EndpointInput.edit(self.endpoint_add, "Add Test"):
+        if edit_endpoint(self.endpoint_add, "Add Test"):
             self.controller.add_endpoint(self.endpoint_add)
             self.endpoint_add = None
 
@@ -566,7 +567,7 @@ class TestInputWindow:
 
         self.endpoint_table()
 
-        if EndpointInput.edit(self.endpoint_edit, "Editing Test"):
+        if edit_endpoint(self.endpoint_edit, "Editing Test"):
             self.endpoint_edit = None
 
         if self.controller.model.endpoints != []:
@@ -683,11 +684,11 @@ class TestResultsWindow:
                 i += 5
             imgui.end_table()
 
-            if EndpointInput.read_only_response(self.response_details):
+            if read_only_response(self.response_details):
                 self.response_details = None
-            if EndpointInput.read_only_request(self.request_details):
+            if read_only_request(self.request_details):
                 self.request_details = None
-            if EndpointInput.edit(self.endpoint_edit, "Editing endpoint"):
+            if edit_endpoint(self.endpoint_edit, "Editing endpoint"):
                 self.endpoint_edit = None
 
     def gui(self):
