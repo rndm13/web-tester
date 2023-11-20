@@ -229,12 +229,13 @@ class Controller:
         # generating request body
         match request.body_type:
             case model.RequestBodyType.FORM_DATA:
-                for elem in endpoint.interaction.request.body.elements:  # should be a dictionary
+                for elem in request.body.elements:  # should be a dictionary
                     if elem.enabled:
                         elem.value = rstr.rstr(string.printable)
 
             case model.RequestBodyType.RAW:
                 request.body = rstr.rstr(string.printable)
+
             case model.RequestBodyType.JSON:
                 log(LogLevel.warning, "Proper json fuzzing not implemented right now")
                 request.body = rstr.rstr(string.printable)
@@ -275,7 +276,7 @@ class Controller:
         wordlist = endpoint.sqlinj_test.wordlist.get()
         match request.body_type:
             case model.RequestBodyType.FORM_DATA:
-                for elem in endpoint.interaction.request.body.elements:  # should be a dictionary
+                for elem in request.body.elements:  # should be a dictionary
                     if elem.enabled:
                         elem.value = wordlist[random.randint(0, len(wordlist) - 1)]
             case model.RequestBodyType.RAW:
@@ -362,6 +363,8 @@ class Controller:
             cookies = self.model.dynamic_options.initial_cookies
 
         for endpoint in self.model.endpoints:
+            # endpoint = deepcopy(endpoint)  # BAD !!!!!!!!
+
             if endpoint.match_test:
                 log(LogLevel.info, f"Starting match test for {endpoint.url} {endpoint.http_type()}")
                 results.append(self.match_test(endpoint, cookies))
