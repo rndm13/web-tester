@@ -37,88 +37,84 @@ class Editors:
         return editor.is_text_changed(), editor.get_text()
 
 
-def dict_input(form: dict[str, str]):
-    if imgui.button("Add"):
-        i = 1
-        while f"key_{i}" in form:
-            i += 1
-        form[f"key_{i}"] = "value"
+def partialdict_input(form: model.PartialDictionary, label: str):
+    # log(LogLevel.debug, f"{id(form)}, {id(form.elements)}, {form.get()}")
 
-    i = 0  # For button ids
-    to_remove = None  # on delete button click
-    if imgui.begin_table("Cookies", 3, View.table_flags, (0, 250)):
+    if imgui.button("Add"):
+        form.elements.append(model.PartialDictionary.Element("new_key", "new_value", True))
+
+    if imgui.begin_table(label, 4, View.table_flags, (0, 250)):
         imgui.table_setup_scroll_freeze(0, 1)
+        imgui.table_setup_column(" ", imgui.TableColumnFlags_.none)
         imgui.table_setup_column("Key", imgui.TableColumnFlags_.none)
         imgui.table_setup_column("Value", imgui.TableColumnFlags_.none)
         imgui.table_setup_column("Actions", imgui.TableColumnFlags_.none)
         imgui.table_headers_row()
         
-        changed_key = False
-        old_key = ""
-        new_key = ""
-        changed_key_value = ""
-
-        for k, v in form.items():
+        i = 0  # For button ids
+        to_remove = None  # on delete button click
+        for elem in form.elements:
             if imgui.table_next_column():
                 imgui.push_id(i + 0)
 
-                imgui.set_next_item_width(-1)
-                changed_key, new_key = imgui.input_text("", k)
-                if changed_key:
-                    old_key = k
-                    changed_key_value = v
+                _, elem.enabled = imgui.checkbox("", elem.enabled)
 
                 imgui.pop_id()
 
             if imgui.table_next_column():
                 imgui.push_id(i + 1)
-                
+
                 imgui.set_next_item_width(-1)
-                changed, val = imgui.input_text("", v)
-                if changed:
-                    form[k] = val
+                _, elem.key = imgui.input_text("", elem.key)
 
                 imgui.pop_id()
 
             if imgui.table_next_column():
                 imgui.push_id(i + 2)
-
-                if imgui.button("Delete", (-1, 0)):
-                    to_remove = k
+                
+                imgui.set_next_item_width(-1)
+                _, elem.value = imgui.input_text("", elem.value)
 
                 imgui.pop_id()
-            i += 3
+
+            if imgui.table_next_column():
+                imgui.push_id(i + 3)
+
+                if imgui.button("Delete", (-1, 0)):
+                    to_remove = elem
+
+                imgui.pop_id()
+            i += 4
 
         if to_remove is not None:
-            form.pop(to_remove)
-
-        if changed_key:
-            form.pop(old_key)
-            form[new_key] = changed_key_value
+            form.elements.remove(to_remove)
 
         imgui.end_table()
 
 
-def read_only_dict(form: dict[str, str]):
-    i = 0  # For button ids
-    if imgui.begin_table("Cookies", 2, View.table_flags, (0, 250)):
+def read_only_partialdict(form: model.PartialDictionary, label: str):
+    if imgui.begin_table(label, 2, View.table_flags, (0, 250)):
         imgui.table_setup_scroll_freeze(0, 1)
         imgui.table_setup_column("Key", imgui.TableColumnFlags_.none)
         imgui.table_setup_column("Value", imgui.TableColumnFlags_.none)
         imgui.table_headers_row()
 
-        for k, v in form.items():
+        i = 0  # For button ids
+        for elem in form.elements:
+            if not elem.enabled:
+                continue
+
             if imgui.table_next_column():
                 imgui.push_id(i + 0)
                 imgui.set_next_item_width(-1)
-                imgui.input_text("", k, imgui.InputTextFlags_.read_only)
+                imgui.input_text("", elem.key, imgui.InputTextFlags_.read_only)
 
                 imgui.pop_id()
             
             if imgui.table_next_column():
                 imgui.push_id(i + 1)
                 imgui.set_next_item_width(-1)
-                imgui.input_text("", v, imgui.InputTextFlags_.read_only)
+                imgui.input_text("", elem.value, imgui.InputTextFlags_.read_only)
 
                 imgui.pop_id()
             i += 2
@@ -131,6 +127,8 @@ def request_body_input(request: model.HTTPRequest):
         request.body = None
         imgui.text("DELETE requests don't have body")
 
+        return
+
     imgui.text("Type")  # type selection
     for v in model.RequestBodyType:
         imgui.same_line()
@@ -139,13 +137,13 @@ def request_body_input(request: model.HTTPRequest):
             request.body_type = v
 
     match request.body_type:
-        case model.RequestBodyType.ORIGIN:
-            if type(request.body) is not dict:
-                request.body = {}
-            dict_input(request.body)
+        case model.RequestBodyType.FORM_DATA:
+            if type(request.body) is not model.PartialDictionary:
+                request.body = model.PartialDictionary.from_json(request.body)
+            partialdict_input(request.body, "request_body")
         case model.RequestBodyType.JSON | model.RequestBodyType.RAW:
             if type(request.body) is not str:
-                request.body = ""
+                request.body = request.body.to_json()
 
             language = None
             if request.body_type == model.RequestBodyType.JSON:
@@ -163,25 +161,29 @@ def request_body_input(request: model.HTTPRequest):
 
             imgui.pop_id()
 
+
 def request_input(request: model.HTTPRequest):
     if imgui.begin_tab_bar("Request"):
         if imgui.begin_tab_item("Body")[0]:
+            imgui.push_id(0)
             request_body_input(request)
+            imgui.pop_id()
             imgui.end_tab_item()
+
         if imgui.begin_tab_item("Cookies")[0]:
-            dict_input(request.cookies)
+            imgui.push_id(1)
+            partialdict_input(request.cookies, "request_cookies")
+            imgui.pop_id()
             imgui.end_tab_item()
 
         if imgui.begin_tab_item("Headers")[0]:
-            imgui.push_id(1)
-            _, request.headers = Editors.render_ed(
-                    "Request headers",
-                    request.headers,
-                    (-1, 250))
+            imgui.push_id(2)
+            partialdict_input(request.headers, "request_headers")
             imgui.pop_id()
             imgui.end_tab_item()
 
         imgui.end_tab_bar()
+
 
 def response_input(response: model.HTTPResponse):
     cur_resp = list(HTTPStatus).index(response.http_status)
@@ -219,32 +221,32 @@ def response_input(response: model.HTTPResponse):
             imgui.end_tab_item()
 
         if imgui.begin_tab_item("Cookies")[0]:
-            dict_input(response.cookies)
+            partialdict_input(response.cookies, "response_cookies")
             imgui.end_tab_item()
 
         if imgui.begin_tab_item("Headers")[0]:
             imgui.push_id(1)
-            _, response.headers = Editors.render_ed(
-                    "Response headers",
-                    response.headers,
-                    (-1, 250))
+            partialdict_input(response.headers, "response_headers")
             imgui.pop_id()
             imgui.end_tab_item()
 
         imgui.end_tab_bar()
+
 
 def read_only_request_body(request: model.HTTPRequest):
     if request.http_type == model.HTTPType.DELETE:
         request.body = None
         imgui.text("DELETE requests don't have body")
 
+        return
+
     imgui.text(f"Type: {request.body_type.name}")
 
     match request.body_type:
-        case model.RequestBodyType.ORIGIN:
-            if type(request.body) is not dict:
-                request.body = {}
-            read_only_dict(request.body)
+        case model.RequestBodyType.FORM_DATA:
+            if type(request.body) is not model.PartialDictionary:
+                request.body = model.PartialDictionary()
+            read_only_partialdict(request.body, "ro_request_body")
         case model.RequestBodyType.JSON | model.RequestBodyType.RAW:
             if type(request.body) is not str:
                 request.body = ""
@@ -275,19 +277,20 @@ def read_only_request(request: model.HTTPRequest):
     if imgui.begin_popup_modal("Request"):
         if imgui.begin_tab_bar("Request"):
             if imgui.begin_tab_item("Body")[0]:
+                imgui.push_id(0)
                 read_only_request_body(request)
+                imgui.pop_id()
                 imgui.end_tab_item()
 
             if imgui.begin_tab_item("Cookies")[0]:
-                read_only_dict(request.cookies)
+                imgui.push_id(1)
+                read_only_partialdict(request.cookies, "ro_request_cookies")
+                imgui.pop_id()
                 imgui.end_tab_item()
 
             if imgui.begin_tab_item("Headers")[0]:
-                imgui.push_id(1)
-                Editors.render_ed(
-                        "RO Request headers",
-                        request.headers,
-                        (-1, 250))
+                imgui.push_id(2)
+                read_only_partialdict(request.headers, "ro_request_headers")
                 imgui.pop_id()
                 imgui.end_tab_item()
 
@@ -299,6 +302,7 @@ def read_only_request(request: model.HTTPRequest):
         imgui.end_popup()
     
     return ret
+
 
 def read_only_response(response: model.HTTPResponse) -> bool:
     if response is None:
@@ -332,15 +336,14 @@ def read_only_response(response: model.HTTPResponse) -> bool:
                 imgui.end_tab_item()
 
             if imgui.begin_tab_item("Cookies")[0]:
-                read_only_dict(response.cookies)
+                imgui.push_id(1)
+                read_only_partialdict(response.cookies, "ro_response_cookies")
+                imgui.pop_id()
                 imgui.end_tab_item()
 
             if imgui.begin_tab_item("Headers")[0]:
-                imgui.push_id(1)
-                Editors.render_ed(
-                        "RO Response headers",
-                        response.headers,
-                        (-1, 250))
+                imgui.push_id(2)
+                read_only_partialdict(response.headers, "ro_response_headers")
                 imgui.pop_id()
                 imgui.end_tab_item()
 
@@ -556,7 +559,7 @@ class TestInputWindow:
             if imgui.tree_node("Details"):
                 _, self.controller.model.dynamic_options.use_initial_values = imgui.checkbox("Use specified default values at start", self.controller.model.dynamic_options.use_initial_values)
                 if self.controller.model.dynamic_options.use_initial_values:
-                    dict_input(self.controller.model.dynamic_options.tracking_cookies)
+                    partialdict_input(self.controller.model.dynamic_options.initial_cookies, "initial_cookies")
 
                 imgui.tree_pop()
 
@@ -579,7 +582,7 @@ class TestInputWindow:
 
     def gui(self):
         if imgui.button("Add Test", (0, 30)):
-            self.endpoint_add = model.example_endpoint()
+            self.endpoint_add = model.Endpoint.default()
             
         if edit_endpoint(self.endpoint_add, "Add Test"):
             self.controller.add_endpoint(self.endpoint_add)

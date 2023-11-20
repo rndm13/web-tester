@@ -21,14 +21,6 @@ log = hello_imgui.log
 LogLevel = hello_imgui.LogLevel
 
 
-def str_to_dict(text: str) -> dict[str, str]:
-    to_ret = {}
-    for line in text.splitlines(False):
-        if (ind := line.find(':')) >= 0:
-            to_ret[line[:ind]] = line[ind + 1:].strip()  # skip over semicolon
-    return to_ret
-
-
 def match_errors(text: str) -> bool:
     static = match_errors
     if not hasattr(static, 'errors'):  # fill with fuzzdb/regex/errors.txt
@@ -47,11 +39,11 @@ def response_convert(response: requests.Response) -> model.HTTPResponse:
         body_type = model.ResponseBodyType.JSON
     except Exception:
         pass
-    headers = ""
-    for k, v in response.headers.items():
-        headers += f"{k}: {v}\n"
+
+    headers = model.PartialDictionary.from_dict(response.headers)
+    cookies = model.PartialDictionary.from_dict(response.cookies)
     
-    return model.HTTPResponse(HTTPStatus(response.status_code), body_type, response.text, headers, response.cookies)
+    return model.HTTPResponse(HTTPStatus(response.status_code), body_type, response.text, headers, cookies)
 
 
 class Controller:
@@ -139,15 +131,19 @@ class Controller:
     def make_request(self, endpoint: model.Endpoint, request: model.HTTPRequest = None) -> requests.Response:
         if request is None:
             request = endpoint.interaction.request
-        headers = str_to_dict(request.headers)
+        
         if endpoint.http_type() == model.HTTPType.GET:
-            return requests.get(endpoint.url, request.body, headers=headers, cookies=request.cookies, timeout=endpoint.max_wait_time)
+            return requests.get(endpoint.url, request.get_body(), headers=request.headers.get(),
+                                cookies=request.cookies.get(), timeout=endpoint.max_wait_time)
         if endpoint.http_type() == model.HTTPType.POST:
-            return requests.post(endpoint.url, request.body, headers=headers, cookies=request.cookies, timeout=endpoint.max_wait_time)
+            return requests.post(endpoint.url, request.get_body(), headers=request.headers.get(),
+                                 cookies=request.cookies.get(), timeout=endpoint.max_wait_time)
         if endpoint.http_type() == model.HTTPType.PUT:
-            return requests.put(endpoint.url, request.body, headers=headers, cookies=request.cookies, timeout=endpoint.max_wait_time)
+            return requests.put(endpoint.url, request.get_body(), headers=request.headers.get(),
+                                cookies=request.cookies.get(), timeout=endpoint.max_wait_time)
         if endpoint.http_type() == model.HTTPType.DELETE:
-            return requests.delete(endpoint.url, headers=headers, cookies=request.cookies, timeout=endpoint.max_wait_time)
+            return requests.delete(endpoint.url, headers=request.headers.get(),
+                                   cookies=request.cookies.get(), timeout=endpoint.max_wait_time)
 
     def handle_request(self, endpoint: model.Endpoint, handler: Callable[[requests.Response], model.TestResult], diff_request: model.HTTPRequest = None) -> model.TestResult:
         if diff_request is None:
@@ -175,7 +171,7 @@ class Controller:
             return model.TestResult(endpoint, model.Severity.WARNING, "Unknown error",
                                     None, error=error, diff_request=diff_request)
 
-    def match_test(self, endpoint: model.Endpoint, override_cookies: dict[str, str] = None) -> model.TestResult:
+    def match_test(self, endpoint: model.Endpoint, override_cookies: model.PartialDictionary = None) -> model.TestResult:
         def value_lower(t):
             (k, v) = t
             return (k, v.lower())
@@ -183,11 +179,11 @@ class Controller:
         request = deepcopy(endpoint.interaction.request)
 
         if override_cookies is not None:
-            request.cookies = override_cookies
+            request.cookies = deepcopy(override_cookies)
 
         def handle_response(response: requests.Response):
             model_http_response = response_convert(response)
-            expected_response_header_set = set(map(value_lower, str_to_dict(endpoint.interaction.response.headers).items()))  # response headers but values are lowercase
+            expected_response_header_set = set(map(value_lower, endpoint.interaction.response.headers.get().items()))  # response headers but values are lowercase
             response_header_set = set(map(value_lower, response.headers.items()))  # response headers but values are lowercase
 
             verdict = "Got expected response"
@@ -210,7 +206,7 @@ class Controller:
                 verdict = "Unmatched return status"
                 severity = model.Severity.DANGER
             # checks if expected response cookies are subset of received
-            elif not set(endpoint.interaction.response.cookies).issubset(set(response.cookies)):
+            elif not set(endpoint.interaction.response.cookies.get()).issubset(set(response.cookies)):
                 verdict = "Unmatched cookies"
                 severity = model.Severity.DANGER
             # checks if expected response headers are subset of received
@@ -223,7 +219,7 @@ class Controller:
     
         return self.handle_request(endpoint, handle_response, request)
 
-    def fuzz_test(self, endpoint: model.Endpoint, override_cookies: dict[str, str] = None) -> model.TestResult:
+    def fuzz_test(self, endpoint: model.Endpoint, override_cookies: model.PartialDictionary = None) -> model.TestResult:
         request = deepcopy(endpoint.interaction.request)
 
         match request.http_type:
@@ -232,9 +228,10 @@ class Controller:
 
         # generating request body
         match request.body_type:
-            case model.RequestBodyType.ORIGIN:
-                for k in endpoint.interaction.request.body.keys():  # should be a dictionary
-                    request.body[k] = rstr.rstr(string.printable)
+            case model.RequestBodyType.FORM_DATA:
+                for elem in endpoint.interaction.request.body.elements:  # should be a dictionary
+                    if elem.enabled:
+                        elem.value = rstr.rstr(string.printable)
 
             case model.RequestBodyType.RAW:
                 request.body = rstr.rstr(string.printable)
@@ -243,7 +240,7 @@ class Controller:
                 request.body = rstr.rstr(string.printable)
 
         if override_cookies is not None:
-            request.cookies = override_cookies
+            request.cookies = deepcopy(override_cookies)
 
         def handle_response(response: requests.Response):
             model_http_response = response_convert(response)
@@ -267,7 +264,7 @@ class Controller:
 
         return self.handle_request(endpoint, handle_response, request)
 
-    def sqlinj_test(self, endpoint: model.Endpoint, override_cookies: dict[str, str] = None) -> model.TestResult:
+    def sqlinj_test(self, endpoint: model.Endpoint, override_cookies: model.PartialDictionary = None) -> model.TestResult:
         request = deepcopy(endpoint.interaction.request)
 
         match request.http_type:
@@ -277,9 +274,10 @@ class Controller:
         # generating request body
         wordlist = endpoint.sqlinj_test.wordlist.get()
         match request.body_type:
-            case model.RequestBodyType.ORIGIN:
-                for k in endpoint.interaction.request.body.keys():  # should be a dictionary
-                    request.body[k] = wordlist[random.randint(0, len(wordlist) - 1)]
+            case model.RequestBodyType.FORM_DATA:
+                for elem in endpoint.interaction.request.body.elements:  # should be a dictionary
+                    if elem.enabled:
+                        elem.value = wordlist[random.randint(0, len(wordlist) - 1)]
             case model.RequestBodyType.RAW:
                 request.body = wordlist[random.randint(0, len(wordlist) - 1)]
             case model.RequestBodyType.JSON:
@@ -287,7 +285,7 @@ class Controller:
                 request.body = wordlist[random.randint(0, len(wordlist) - 1)]
 
         if override_cookies is not None:
-            request.cookies = override_cookies
+            request.cookies = deepcopy(override_cookies)
 
         def handle_response(response: requests.Response):
             model_http_response = response_convert(response)
@@ -359,27 +357,30 @@ class Controller:
             if endpoint.sqlinj_test is not None:
                 max_count += endpoint.sqlinj_test.count
 
-        cookies = {}
+        cookies = model.PartialDictionary()
         if self.model.dynamic_options.use_initial_values:
-            cookies = self.model.dynamic_options.tracking_cookies
+            cookies = self.model.dynamic_options.initial_cookies
 
         for endpoint in self.model.endpoints:
             if endpoint.match_test:
                 log(LogLevel.info, f"Starting match test for {endpoint.url} {endpoint.http_type()}")
                 results.append(self.match_test(endpoint, cookies))
-                cookies = results[-1].response.cookies
+                if results[-1].severity == model.Severity.OK:
+                    cookies = model.PartialDictionary.merge(cookies, results[-1].response.cookies)
                 self.progress += 1 / max_count
             if endpoint.fuzz_test is not None:
                 for i in range(0, endpoint.fuzz_test.count):
                     log(LogLevel.info, f"Starting fuzz test for {endpoint.url} {endpoint.http_type()}")
                     results.append(self.fuzz_test(endpoint, cookies))
-                    cookies = results[-1].response.cookies
+                    if results[-1].severity == model.Severity.OK:
+                        cookies = model.PartialDictionary.merge(cookies, results[-1].response.cookies)
                     self.progress += 1 / max_count
             if endpoint.sqlinj_test is not None:
                 for i in range(0, endpoint.sqlinj_test.count):
                     log(LogLevel.info, f"Starting SQL injection test for {endpoint.url} {endpoint.http_type()}")
                     results.append(self.sqlinj_test(endpoint, cookies))
-                    cookies = results[-1].response.cookies
+                    if results[-1].severity == model.Severity.OK:
+                        cookies = model.PartialDictionary.merge(cookies, results[-1].response.cookies)
                     self.progress += 1 / max_count
 
         self.model.results = results
@@ -398,7 +399,7 @@ class Controller:
             return
 
         for thr in self.thread_pool._threads:
-            thr.join(timeout=0.5)
+            thr.join(timeout=0)
             
         self.in_progress = False
         log(LogLevel.info, "Testing canceled")

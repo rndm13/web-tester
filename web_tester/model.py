@@ -1,15 +1,16 @@
 from typing import Union
+from enum import Enum, StrEnum
+from copy import deepcopy
+
 import validators
 import json
 import datetime
 
-from enum import Enum, StrEnum
 from http import HTTPStatus
 
 import _pickle as pickle
 
-from imgui_bundle import imgui_color_text_edit as ed, hello_imgui
-TextEditor = ed.TextEditor
+from imgui_bundle import hello_imgui
 log = hello_imgui.log
 LogLevel = hello_imgui.LogLevel
 
@@ -24,20 +25,75 @@ class HTTPType(StrEnum):
 class RequestBodyType(StrEnum):
     JSON = "JSON"
     RAW = "RAW"
-    ORIGIN = "ORIGIN"
+    FORM_DATA = "FORM_DATA"
+
+
+class PartialDictionary:
+    class Element:
+        def __init__(self, key: str, value: str, enabled: bool) -> ():
+            self.key = key
+            self.value = value
+            self.enabled = enabled
+
+    def __init__(self, elements: list[Element] = []) -> ():
+        self.elements = deepcopy(elements)  # kinda bad solution but eh
+
+    def get(self) -> dict[str, str]:
+        enabled_elements = list(filter(lambda x: x.enabled, self.elements))
+        keys = map(lambda x: x.key, enabled_elements)
+        values = map(lambda x: x.value, enabled_elements)
+
+        return dict(zip(keys, values))
+
+    def to_json(self) -> str:
+        return json.dumps(self.get(), indent=4)
+
+    # a and b mean PartialDictionary
+    @classmethod
+    def merge(cls, a, b):  # -> PartialDictionary:
+        # this is stupid but it works
+        d = a.get()
+        for k, v in b.get().items():
+            d[k] = v
+        return cls.from_dict(d)
+
+    @classmethod
+    def from_dict(cls, dictionary: dict[str, str]):  # -> PartialDictionary:
+        return PartialDictionary(list(map(lambda x: PartialDictionary.Element(x[0], x[1], True), dictionary.items())))
+
+    @classmethod
+    def from_json(cls, json_str: str):  # -> PartialDictionary:
+        dictionary = json.loads(json_str)
+        if type(dictionary) is dict:
+            return PartialDictionary(list(map(lambda x: PartialDictionary.Element(x[0], str(x[1]), True), dictionary.items())))
+        return PartialDictionary()
+
+    @classmethod
+    def from_str(cls, text: str):  # -> PartialDictionary:
+        elements = []
+        for line in text.splitlines(False):
+            if (ind := line.find(':')) >= 0:
+                elements.append(PartialDictionary.Element(line[:ind].strip(), line[ind + 1:].strip(), True))
+        return PartialDictionary(elements)
 
 
 class HTTPRequest:
-    def __init__(self, http_type: HTTPType, body_type: RequestBodyType = RequestBodyType.ORIGIN, body: Union[str, dict[str, str]] = None, headers: str = "", cookies: dict[str, str] = {}):
+    def __init__(self,
+                 http_type: HTTPType,
+                 body_type: RequestBodyType = RequestBodyType.FORM_DATA, body: Union[str, PartialDictionary] = None,
+                 headers: PartialDictionary = PartialDictionary(), cookies: PartialDictionary = PartialDictionary()):
+
         self.http_type = http_type
         self.body_type = body_type
         self.body = body
+
         if self.body is None:
             match self.body_type:
-                case RequestBodyType.ORIGIN:
-                    self.body = {}
+                case RequestBodyType.FORM_DATA:
+                    self.body = PartialDictionary()
                 case RequestBodyType.JSON | RequestBodyType.RAW:
                     self.body = ""
+
         self.headers = headers
         self.cookies = cookies
         self.prettify()
@@ -60,6 +116,13 @@ class HTTPRequest:
         except Exception as e:
             log(LogLevel.warning, f"Failed to prettify json: {str(e)}")
 
+    def get_body(self) -> Union[str, dict[str, str]]:
+        match self.body_type:
+            case RequestBodyType.JSON | RequestBodyType.RAW:
+                return self.body
+            case RequestBodyType.FORM_DATA:
+                return self.body.get()
+
 
 class ResponseBodyType(StrEnum):
     JSON = "JSON"
@@ -68,7 +131,11 @@ class ResponseBodyType(StrEnum):
 
 
 class HTTPResponse:
-    def __init__(self, http_status: HTTPStatus, body_type: ResponseBodyType = ResponseBodyType.JSON, body: Union[str, dict[str, str]] = "", headers: str = "", cookies: dict[str, str] = {}):
+    def __init__(self,
+                 http_status: HTTPStatus,
+                 body_type: ResponseBodyType = ResponseBodyType.JSON, body: Union[str, PartialDictionary] = "",
+                 headers: PartialDictionary = PartialDictionary(), cookies: PartialDictionary = PartialDictionary()):
+
         self.http_status = http_status
         self.body_type = body_type
         self.body = body
@@ -77,7 +144,7 @@ class HTTPResponse:
         self.prettify()
         
     def validate(self) -> str:
-        if self.body == "" or self.body == {}:
+        if self.body == "" or self.body.get() == {}:
             return ""  # nothing to validate
 
         match self.body_type:
@@ -181,6 +248,10 @@ class Endpoint:
             return "must select at least one type of testing"
         
         return self.interaction.validate()
+    
+    @classmethod
+    def default(cls):  # -> Endpoint:
+        return Endpoint('https://example.com/some/action', Interaction(HTTPRequest(HTTPType.GET), HTTPResponse(HTTPStatus.OK)))
 
 
 class EndpointFilter:
@@ -210,8 +281,10 @@ class Severity(Enum):
 
 class TestResult:
     def __init__(self,
-                 endpoint: Endpoint, severity: Severity, verdict: str, elapsed_time: datetime.time,
-                 diff_request: HTTPRequest = None, response: HTTPResponse = None, error=None) -> ():
+                 endpoint: Endpoint,
+                 severity: Severity, verdict: str, elapsed_time: datetime.time,
+                 diff_request: HTTPRequest = None, response: HTTPResponse = None,
+                 error=None) -> ():
         self.endpoint = endpoint
         self.severity = severity
         self.verdict = verdict
@@ -251,13 +324,13 @@ class TestResultFilter:
 
 
 class DynamicTestingOptions:
-    def __init__(self, tracking_cookies: dict[str, str], use_initial_values: bool) -> ():
-        self.tracking_cookies = tracking_cookies
+    def __init__(self, use_initial_values: bool, initial_cookies: PartialDictionary) -> ():
         self.use_initial_values = use_initial_values
+        self.initial_cookies = initial_cookies
 
     @classmethod
     def default(cls):
-        return DynamicTestingOptions({}, False)
+        return DynamicTestingOptions(False, PartialDictionary())
 
 
 class Model:
@@ -280,8 +353,3 @@ class Model:
     def load(filename: str):
         with open(filename, 'rb') as input:
             return pickle.load(input)
-
-
-def example_endpoint() -> Endpoint:
-    ec = Endpoint('https://example.com/some/action', Interaction(HTTPRequest(HTTPType.GET), HTTPResponse(HTTPStatus.OK)))
-    return ec
