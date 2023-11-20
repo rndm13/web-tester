@@ -250,10 +250,21 @@ class TestResultFilter:
         return ret
 
 
+class DynamicTestingOptions:
+    def __init__(self, tracking_cookies: dict[str, str], use_initial_values: bool) -> ():
+        self.tracking_cookies = tracking_cookies
+        self.use_initial_values = use_initial_values
+
+    @classmethod
+    def default(cls):
+        return DynamicTestingOptions({}, False)
+
+
 class Model:
-    def __init__(self, endpoints: list[Endpoint] = [], results: list[TestResult] = []):
+    def __init__(self, endpoints: list[Endpoint] = [], results: list[TestResult] = [], dynamic_options: DynamicTestingOptions = None):
         self.endpoints = endpoints
         self.results = results
+        self.dynamic_options = dynamic_options
 
     def add_endpoint(self, endpoint: Endpoint):
         return self.endpoints.append(endpoint)

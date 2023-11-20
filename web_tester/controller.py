@@ -175,10 +175,15 @@ class Controller:
             return model.TestResult(endpoint, model.Severity.WARNING, "Unknown error",
                                     None, error=error, diff_request=diff_request)
 
-    def match_test(self, endpoint: model.Endpoint) -> model.TestResult:
+    def match_test(self, endpoint: model.Endpoint, override_cookies: dict[str, str] = None) -> model.TestResult:
         def value_lower(t):
             (k, v) = t
             return (k, v.lower())
+
+        request = deepcopy(endpoint.interaction.request)
+
+        if override_cookies is not None:
+            request.cookies = override_cookies
 
         def handle_response(response: requests.Response):
             model_http_response = response_convert(response)
@@ -214,11 +219,11 @@ class Controller:
                 severity = model.Severity.DANGER
 
             return model.TestResult(endpoint, severity, verdict,
-                                    response.elapsed, None, model_http_response)
+                                    response.elapsed, request, model_http_response)
+    
+        return self.handle_request(endpoint, handle_response, request)
 
-        return self.handle_request(endpoint, handle_response)
-
-    def fuzz_test(self, endpoint: model.Endpoint) -> model.TestResult:
+    def fuzz_test(self, endpoint: model.Endpoint, override_cookies: dict[str, str] = None) -> model.TestResult:
         request = deepcopy(endpoint.interaction.request)
 
         match request.http_type:
@@ -237,6 +242,9 @@ class Controller:
                 log(LogLevel.warning, "Proper json fuzzing not implemented right now")
                 request.body = rstr.rstr(string.printable)
 
+        if override_cookies is not None:
+            request.cookies = override_cookies
+
         def handle_response(response: requests.Response):
             model_http_response = response_convert(response)
 
@@ -259,7 +267,7 @@ class Controller:
 
         return self.handle_request(endpoint, handle_response, request)
 
-    def sqlinj_test(self, endpoint: model.Endpoint) -> model.TestResult:
+    def sqlinj_test(self, endpoint: model.Endpoint, override_cookies: dict[str, str] = None) -> model.TestResult:
         request = deepcopy(endpoint.interaction.request)
 
         match request.http_type:
@@ -278,6 +286,9 @@ class Controller:
                 log(LogLevel.warning, "Proper json fuzzing not implemented right now")
                 request.body = wordlist[random.randint(0, len(wordlist) - 1)]
 
+        if override_cookies is not None:
+            request.cookies = override_cookies
+
         def handle_response(response: requests.Response):
             model_http_response = response_convert(response)
 
@@ -300,7 +311,7 @@ class Controller:
 
         return self.handle_request(endpoint, handle_response, request)
 
-    def run_tests(self):
+    def run_default_tests(self):
         self.in_progress = True
         self.progress = 0
 
@@ -332,8 +343,55 @@ class Controller:
         self.in_progress = False
         self.filter_results()
 
+    def run_dynamic_tests(self):
+        self.in_progress = True
+        self.progress = 0
+
+        results = []
+        
+        max_count = 0
+
+        for endpoint in self.model.endpoints:
+            if endpoint.match_test:
+                max_count += 1
+            if endpoint.fuzz_test is not None:
+                max_count += endpoint.fuzz_test.count
+            if endpoint.sqlinj_test is not None:
+                max_count += endpoint.sqlinj_test.count
+
+        cookies = {}
+        if self.model.dynamic_options.use_initial_values:
+            cookies = self.model.dynamic_options.tracking_cookies
+
+        for endpoint in self.model.endpoints:
+            if endpoint.match_test:
+                log(LogLevel.info, f"Starting match test for {endpoint.url} {endpoint.http_type()}")
+                results.append(self.match_test(endpoint, cookies))
+                cookies = results[-1].response.cookies
+                self.progress += 1 / max_count
+            if endpoint.fuzz_test is not None:
+                for i in range(0, endpoint.fuzz_test.count):
+                    log(LogLevel.info, f"Starting fuzz test for {endpoint.url} {endpoint.http_type()}")
+                    results.append(self.fuzz_test(endpoint, cookies))
+                    cookies = results[-1].response.cookies
+                    self.progress += 1 / max_count
+            if endpoint.sqlinj_test is not None:
+                for i in range(0, endpoint.sqlinj_test.count):
+                    log(LogLevel.info, f"Starting SQL injection test for {endpoint.url} {endpoint.http_type()}")
+                    results.append(self.sqlinj_test(endpoint, cookies))
+                    cookies = results[-1].response.cookies
+                    self.progress += 1 / max_count
+
+        self.model.results = results
+        self.progress = 1
+        self.in_progress = False
+        self.filter_results()
+
     def start_testing(self):
-        self.thread_pool.submit(Controller.run_tests, self)
+        if self.model.dynamic_options is not None:
+            self.thread_pool.submit(Controller.run_dynamic_tests, self)
+        else:
+            self.thread_pool.submit(Controller.run_default_tests, self)
 
     def cancel_testing(self):
         if not self.in_progress:

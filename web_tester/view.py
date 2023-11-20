@@ -539,16 +539,28 @@ class TestInputWindow:
         self.endpoint_edit = None
         self.validation = ""
 
-    def gui(self):
-        if imgui.button("Add Test", (0, 30)):
-            self.endpoint_add = model.example_endpoint()
-            
-        if edit_endpoint(self.endpoint_add, "Add Test"):
-            self.controller.add_endpoint(self.endpoint_add)
-            self.endpoint_add = None
+    def dynamic_testing(self):
+        # if not hasattr(self.controller.model, "dynamic_testing"):  # should help with previous saves
+        #     self.controller.model.dynamic_options = None
+        
+        changed, value = imgui.checkbox("Enable dynamic testing", self.controller.model.dynamic_options is not None)
 
-        imgui.same_line()
+        if changed:
+            if value:
+                self.controller.model.dynamic_options = model.DynamicTestingOptions.default()
+            else:
+                self.controller.model.dynamic_options = None
 
+        if self.controller.model.dynamic_options is not None:
+            imgui.same_line()
+            if imgui.tree_node("Details"):
+                _, self.controller.model.dynamic_options.use_initial_values = imgui.checkbox("Use specified default values at start", self.controller.model.dynamic_options.use_initial_values)
+                if self.controller.model.dynamic_options.use_initial_values:
+                    dict_input(self.controller.model.dynamic_options.tracking_cookies)
+
+                imgui.tree_pop()
+
+    def filter(self):
         if imgui.button("Filter Tests", (0, 30)):
             self.endpoint_filter = EndpointFilterInput(self)
         
@@ -564,6 +576,20 @@ class TestInputWindow:
                     self.controller.set_endpoint_filter(self.endpoint_filter)
 
                 imgui.tree_pop()
+
+    def gui(self):
+        if imgui.button("Add Test", (0, 30)):
+            self.endpoint_add = model.example_endpoint()
+            
+        if edit_endpoint(self.endpoint_add, "Add Test"):
+            self.controller.add_endpoint(self.endpoint_add)
+            self.endpoint_add = None
+
+        imgui.same_line()
+
+        self.filter()
+
+        self.dynamic_testing()
 
         self.endpoint_table()
 
