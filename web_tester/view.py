@@ -625,7 +625,7 @@ class TestResultsWindow:
 
     def results_table(self):
         i = 0  # For button ids
-        if imgui.begin_table("Results", 6, View.table_flags, (0, 250)):
+        if imgui.begin_table("Results", 6, View.table_flags, (0, -1)):
             imgui.table_setup_scroll_freeze(0, 1)
             imgui.table_setup_column("URL", imgui.TableColumnFlags_.none)
             imgui.table_setup_column("Severity", imgui.TableColumnFlags_.none)
@@ -734,7 +734,7 @@ class View:
 
     def status_bar(self):
         if self.controller.in_progress:
-            imgui.text("|/-\\"[round(imgui.get_time() / (1 / 8)) & 3])
+            imgui.text("|/-\\"[round(imgui.get_time() / (1 / 8)) & 3])  # spinner
             imgui.same_line()
             imgui.set_cursor_pos_x(20)
             imgui.text("Running")
@@ -756,11 +756,6 @@ class View:
 
             imgui.end_menu()
 
-        # if imgui.begin_menu("Test"):
-        #     if imgui.menu_item("Basic tests", "", False)[0]:
-        #         self.controller.start_basic_testing()
-        #     imgui.end_menu()
-
         if self.file_save is not None and self.file_save.ready():
             if self.file_save.result() is not None and self.file_save.result() != "":
                 self.controller.save(self.file_save.result())
@@ -775,6 +770,9 @@ class View:
             if self.file_export.result() is not None and self.file_export.result() != "":
                 self.controller.export(self.file_export.result())
                 self.file_export = None
+
+    def app_menu(self):
+        pass
 
     def run(self):
         runner_params = hello_imgui.RunnerParams()

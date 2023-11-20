@@ -195,7 +195,7 @@ class Controller:
             elif model_http_response.http_status.is_server_error:
                 verdict = "Server error in status found"
                 severity = model.Severity.CRITICAL
-            elif not model_http_response.http_status.is_client_error and endpoint.interaction.response.body_type != model_http_response.body_type:
+            elif endpoint.interaction.response.body_type != model_http_response.body_type:
                 verdict = "Unmatched body type"
                 severity = model.Severity.CRITICAL
             elif endpoint.interaction.response.body != "" and endpoint.interaction.response.body != model_http_response.body:
@@ -247,7 +247,7 @@ class Controller:
             if not model_http_response.http_status.is_client_error and match_errors(model_http_response.body):
                 verdict = "Found non-client errors in response"
                 severity = model.Severity.CRITICAL
-            elif not model_http_response.http_status.is_client_error and endpoint.interaction.response.body_type != model_http_response.body_type:
+            elif endpoint.interaction.response.body_type != model_http_response.body_type:
                 verdict = "Unmatched body type"
                 severity = model.Severity.CRITICAL
             elif model_http_response.http_status.is_server_error:
@@ -288,7 +288,7 @@ class Controller:
             if not model_http_response.http_status.is_client_error and match_errors(model_http_response.body):
                 verdict = "Found non-client errors in response"
                 severity = model.Severity.CRITICAL
-            elif not model_http_response.http_status.is_client_error and endpoint.interaction.response.body_type != model_http_response.body_type:
+            elif endpoint.interaction.response.body_type != model_http_response.body_type:
                 verdict = "Unmatched body type"
                 severity = model.Severity.CRITICAL
             elif model_http_response.http_status.is_server_error:

@@ -1,4 +1,4 @@
-from .main import main
+from web_tester.main import main
 
 if __name__ == "__main__":
     main()
