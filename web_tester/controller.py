@@ -47,7 +47,7 @@ def response_convert(response: requests.Response) -> model.HTTPResponse:
 
 
 class Controller:
-    def __init__(self, model: model.Model = model.Model([], []), thread_pool: futures.ThreadPoolExecutor = futures.ThreadPoolExecutor(4)):
+    def __init__(self, model: model.Model = model.Model([], []), thread_pool: futures.ThreadPoolExecutor = futures.ThreadPoolExecutor()):
         self.model = model
         self.thread_pool = thread_pool
 
@@ -363,8 +363,6 @@ class Controller:
             cookies = self.model.dynamic_options.initial_cookies
 
         for endpoint in self.model.endpoints:
-            # endpoint = deepcopy(endpoint)  # BAD !!!!!!!!
-
             if endpoint.match_test:
                 log(LogLevel.info, f"Starting match test for {endpoint.url} {endpoint.http_type()}")
                 results.append(self.match_test(endpoint, cookies))
@@ -401,8 +399,12 @@ class Controller:
         if not self.in_progress:
             return
 
-        for thr in self.thread_pool._threads:
-            thr.join(timeout=0)
+        # log(LogLevel.debug, str(self.thread_pool._threads))
+        # for thr in self.thread_pool._threads:
+        #     thr.join(timeout=0)
+
+        self.thread_pool.shutdown(cancel_futures=True)
+        self.thread_pool = futures.ThreadPoolExecutor()
             
         self.in_progress = False
         log(LogLevel.info, "Testing canceled")
