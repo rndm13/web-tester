@@ -46,6 +46,28 @@ def response_convert(response: requests.Response) -> model.HTTPResponse:
     return model.HTTPResponse(HTTPStatus(response.status_code), body_type, response.text, headers, cookies)
 
 
+def fuzz_json(json_body):
+    body = deepcopy(json_body)
+
+    if isinstance(body, dict):
+        for k, v in body.items():
+            body[k] = fuzz_json(v)
+        return body
+    if isinstance(body, list):
+        for item in body:
+            item = fuzz_json(item)
+    if isinstance(body, str):
+        return rstr.rstr(string.printable)
+    if isinstance(body, int):
+        return round(random.random() * 100) - 50
+    if isinstance(body, float):
+        return random.random() * 100 - 50
+    if isinstance(body, bool):
+        return random.random() >= 0.5
+
+    return body
+
+
 class Controller:
     def __init__(self, model: model.Model = model.Model([], []), thread_pool: futures.ThreadPoolExecutor = futures.ThreadPoolExecutor()):
         self.model = model
@@ -237,8 +259,9 @@ class Controller:
                 request.body = rstr.rstr(string.printable)
 
             case model.RequestBodyType.JSON:
-                log(LogLevel.warning, "Proper json fuzzing not implemented right now")
-                request.body = rstr.rstr(string.printable)
+                # log(LogLevel.warning, "Proper json fuzzing not implemented right now")
+                request.body = json.dumps(fuzz_json(json.loads(request.body)))
+                # request.body = rstr.rstr(string.printable)
 
         if override_cookies is not None:
             request.cookies = deepcopy(override_cookies)

@@ -63,9 +63,12 @@ class PartialDictionary:
 
     @classmethod
     def from_json(cls, json_str: str):  # -> PartialDictionary:
-        dictionary = json.loads(json_str)
-        if type(dictionary) is dict:
-            return PartialDictionary(list(map(lambda x: PartialDictionary.Element(x[0], str(x[1]), True), dictionary.items())))
+        try:
+            dictionary = json.loads(json_str)
+            if type(dictionary) is dict:
+                return PartialDictionary(list(map(lambda x: PartialDictionary.Element(x[0], str(x[1]), True), dictionary.items())))
+        except Exception:
+            pass
         return PartialDictionary()
 
     @classmethod
