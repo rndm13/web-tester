@@ -220,7 +220,8 @@ class SQLInjectionTest:
 
 class Endpoint:
     def __init__(self, url: str, interaction: Interaction, max_wait_time: int = 10,
-                 match_test: bool = True, fuzz_test: FuzzTest = FuzzTest(), sqlinj_test: SQLInjectionTest = None) -> ():
+                 match_test: bool = True, fuzz_test: FuzzTest = FuzzTest(), sqlinj_test: SQLInjectionTest = None, enabled: bool = True) -> ():
+        self.enabled = enabled
         self.url = url
         self.interaction = interaction
         self.max_wait_time = max_wait_time
@@ -347,6 +348,9 @@ class Model:
 
     def remove_endpoint(self, endpoint: Endpoint):
         return self.endpoints.remove(endpoint)
+
+    def enabled_endpoints(self) -> list[Endpoint]:
+        return list(filter(lambda x: x.enabled, self.endpoints))
 
     def save(self, filename: str):
         with open(filename, 'wb') as output:

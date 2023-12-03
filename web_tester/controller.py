@@ -339,7 +339,7 @@ class Controller:
 
         thrs = []
         results = []
-        for endpoint in self.model.endpoints:
+        for endpoint in self.model.enabled_endpoints():
             if endpoint.match_test:
                 log(LogLevel.info, f"Starting match test for {endpoint.url} {endpoint.http_type()}")
                 thrs.append(self.thread_pool.submit(Controller.match_test, self, endpoint))
@@ -373,7 +373,7 @@ class Controller:
         
         max_count = 0
 
-        for endpoint in self.model.endpoints:
+        for endpoint in self.model.enabled_endpoints():
             if endpoint.match_test:
                 max_count += 1
             if endpoint.fuzz_test is not None:
@@ -385,7 +385,7 @@ class Controller:
         if self.model.dynamic_options.use_initial_values:
             cookies = self.model.dynamic_options.initial_cookies
 
-        for endpoint in self.model.endpoints:
+        for endpoint in self.model.enabled_endpoints():
             if endpoint.match_test:
                 log(LogLevel.info, f"Starting match test for {endpoint.url} {endpoint.http_type()}")
                 results.append(self.match_test(endpoint, cookies))

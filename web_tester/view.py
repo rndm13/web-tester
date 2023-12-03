@@ -609,8 +609,9 @@ class TestInputWindow:
 
     def endpoint_table(self):
         i = 0  # For button ids
-        if imgui.begin_table("Tests", 4, View.table_flags, (0, 250)):
+        if imgui.begin_table("Tests", 5, View.table_flags, (0, 250)):
             imgui.table_setup_scroll_freeze(0, 1)
+            imgui.table_setup_column("", imgui.TableColumnFlags_.none)
             imgui.table_setup_column("URL", imgui.TableColumnFlags_.none)
             imgui.table_setup_column("HTTP", imgui.TableColumnFlags_.none)
             imgui.table_setup_column("Test types", imgui.TableColumnFlags_.none)
@@ -619,9 +620,14 @@ class TestInputWindow:
 
             for ep in self.controller.endpoints():
                 if imgui.table_next_column():
+                    if not hasattr(ep, "enabled"):
+                        ep.enabled = True  # for files previous version
+
+                    _, ep.enabled = imgui.checkbox("", ep.enabled)
+                if imgui.table_next_column():
                     imgui.push_id(i + 0)
                     imgui.set_next_item_width(-1)
-                    imgui.input_text("", ep.url, imgui.InputTextFlags_.read_only)
+                    imgui.input_text("", ep.url)
                     imgui.pop_id()
 
                 if imgui.table_next_column():
