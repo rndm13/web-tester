@@ -38,8 +38,6 @@ class Editors:
 
 
 def partialdict_input(form: model.PartialDictionary, label: str):
-    # log(LogLevel.debug, f"{id(form)}, {id(form.elements)}, {form.get()}")
-
     if imgui.button("Add"):
         form.elements.append(model.PartialDictionary.Element("new_key", "new_value", True))
 
@@ -608,7 +606,6 @@ class TestInputWindow:
                     self.controller.cancel_testing()
 
     def endpoint_table(self):
-        i = 0  # For button ids
         if imgui.begin_table("Tests", 5, View.table_flags, (0, 250)):
             imgui.table_setup_scroll_freeze(0, 1)
             imgui.table_setup_column("", imgui.TableColumnFlags_.none)
@@ -618,17 +615,17 @@ class TestInputWindow:
             imgui.table_setup_column("Actions", imgui.TableColumnFlags_.none)
             imgui.table_headers_row()
 
+            i = 0  # For button ids
             for ep in self.controller.endpoints():
+                imgui.push_id(f"endpoints##{i}")
                 if imgui.table_next_column():
                     if not hasattr(ep, "enabled"):
                         ep.enabled = True  # for files previous version
 
-                    _, ep.enabled = imgui.checkbox("", ep.enabled)
+                    _, ep.enabled = imgui.checkbox("##enabled", ep.enabled)
                 if imgui.table_next_column():
-                    imgui.push_id(i + 0)
                     imgui.set_next_item_width(-1)
-                    imgui.input_text("", ep.url)
-                    imgui.pop_id()
+                    _, ep.url = imgui.input_text("##url", ep.url)
 
                 if imgui.table_next_column():
                     imgui.text(ep.http_type())
@@ -637,15 +634,15 @@ class TestInputWindow:
                     imgui.text(ep.test_types())
                 
                 if imgui.table_next_column():
-                    imgui.push_id(i + 1)
                     width = imgui.get_column_width()
                     if imgui.button("Edit", (width / 2 - 5, 0)):
                         self.endpoint_edit = ep
                     imgui.same_line()
                     if imgui.button("Delete", (width / 2 - 5, 0)):
                         self.controller.remove_endpoint(ep)
-                    imgui.pop_id()
-                i += 2
+                imgui.pop_id()
+                i += 1
+
             imgui.end_table()
 
 
