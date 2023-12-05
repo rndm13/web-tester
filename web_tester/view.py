@@ -121,12 +121,6 @@ def read_only_partialdict(form: model.PartialDictionary, label: str):
 
 
 def request_body_input(request: model.HTTPRequest):
-    if request.http_type == model.HTTPType.DELETE:
-        request.body = None
-        imgui.text("DELETE requests don't have body")
-
-        return
-
     imgui.text("Type")  # type selection
     for v in model.RequestBodyType:
         imgui.same_line()
@@ -140,6 +134,9 @@ def request_body_input(request: model.HTTPRequest):
                 request.body = model.PartialDictionary.from_json(request.body)
             partialdict_input(request.body, "request_body")
         case model.RequestBodyType.JSON | model.RequestBodyType.RAW:
+            if request.body is None:
+                request.body = ""
+
             if type(request.body) is not str:
                 request.body = request.body.to_json()
 
@@ -232,12 +229,6 @@ def response_input(response: model.HTTPResponse):
 
 
 def read_only_request_body(request: model.HTTPRequest):
-    if request.http_type == model.HTTPType.DELETE:
-        request.body = None
-        imgui.text("DELETE requests don't have body")
-
-        return
-
     imgui.text(f"Type: {request.body_type.name}")
 
     match request.body_type:
@@ -356,10 +347,6 @@ def read_only_response(response: model.HTTPResponse) -> bool:
 
 
 def fuzz_test(endpoint: model.Endpoint):
-    if endpoint.interaction.request.http_type == model.HTTPType.DELETE:
-        endpoint.fuzz_test = None
-        return
-
     changed, fuzz_test = imgui.checkbox("Fuzz tests", endpoint.fuzz_test is not None)
     if changed:
         if fuzz_test:
@@ -381,10 +368,6 @@ def sqlinj_test(endpoint: model.Endpoint) -> ():
     static = sqlinj_test
     if not hasattr(static, "sqlinj_file_open"):
         static.sqlinj_file_open = None
-
-    if endpoint.interaction.request.http_type == model.HTTPType.DELETE:
-        endpoint.sqlinj_test = None
-        return
 
     changed, test = imgui.checkbox("SQL injection tests", endpoint.sqlinj_test is not None)
     if changed:

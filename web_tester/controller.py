@@ -155,16 +155,16 @@ class Controller:
             request = endpoint.interaction.request
         
         if endpoint.http_type() == model.HTTPType.GET:
-            return requests.get(endpoint.url, request.get_body(), headers=request.headers.get(),
+            return requests.get(endpoint.url, data=request.get_body(), headers=request.headers.get(),
                                 cookies=request.cookies.get(), timeout=endpoint.max_wait_time)
         if endpoint.http_type() == model.HTTPType.POST:
-            return requests.post(endpoint.url, request.get_body(), headers=request.headers.get(),
+            return requests.post(endpoint.url, data=request.get_body(), headers=request.headers.get(),
                                  cookies=request.cookies.get(), timeout=endpoint.max_wait_time)
         if endpoint.http_type() == model.HTTPType.PUT:
-            return requests.put(endpoint.url, request.get_body(), headers=request.headers.get(),
+            return requests.put(endpoint.url, data=request.get_body(), headers=request.headers.get(),
                                 cookies=request.cookies.get(), timeout=endpoint.max_wait_time)
         if endpoint.http_type() == model.HTTPType.DELETE:
-            return requests.delete(endpoint.url, headers=request.headers.get(),
+            return requests.delete(endpoint.url, data=request.get_body(), headers=request.headers.get(),
                                    cookies=request.cookies.get(), timeout=endpoint.max_wait_time)
 
     def handle_request(self, endpoint: model.Endpoint, handler: Callable[[requests.Response], model.TestResult], diff_request: model.HTTPRequest = None) -> model.TestResult:
@@ -244,10 +244,6 @@ class Controller:
     def fuzz_test(self, endpoint: model.Endpoint, override_cookies: model.PartialDictionary = None) -> model.TestResult:
         request = deepcopy(endpoint.interaction.request)
 
-        match request.http_type:
-            case model.HTTPType.DELETE:
-                return model.TestResult(endpoint, model.Severity.WARNING, "Cannot do fuzz tests for DELETE requests", None)
-
         # generating request body
         match request.body_type:
             case model.RequestBodyType.FORM_DATA:
@@ -290,10 +286,6 @@ class Controller:
 
     def sqlinj_test(self, endpoint: model.Endpoint, override_cookies: model.PartialDictionary = None) -> model.TestResult:
         request = deepcopy(endpoint.interaction.request)
-
-        match request.http_type:
-            case model.HTTPType.DELETE:
-                return model.TestResult(endpoint, model.Severity.WARNING, "Cannot do sql injection tests for DELETE requests", None)
 
         # generating request body
         wordlist = endpoint.sqlinj_test.wordlist.get()
