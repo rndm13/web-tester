@@ -20,6 +20,3 @@ Uses [fuzzdb](https://github.com/fuzzdb-project/fuzzdb)
     - [x] Can be cancelled
 - [x] Analyzing test results
     - [x] Checks for errors in response using selected wordlist
-
-# Example Video
-![](./assets/example.mp4) 
